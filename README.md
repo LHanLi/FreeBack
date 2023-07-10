@@ -1,4 +1,4 @@
-# ---------yaya_quant---------------
+# ---------FreeBack---------------
 
 python script for quant( provide comprehensive index and backtesting structure)
 
@@ -15,3 +15,4 @@ Automatic:
 
             pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
 
+# -----------Hello world------------------------
