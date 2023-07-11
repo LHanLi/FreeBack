@@ -1,8 +1,28 @@
-from FreeBack.FreeBack.barbybar import World
-
+from FreeBack.FreeBack.barbybar import *
+from FreeBack.FreeBack.alpha import *
+import copy
 
 
 # 因子持有策略
+# 如果是持有百分位的话需要先排除掉alpha-keep不选择的再进行排序
+def getRank(market_, factor, reverse=False):
+    name = 'rank_' + factor
+    market = copy.copy(market_)
+    if 'alpha-keep' in market.columns:
+        market_factor = market_[market_['alpha-keep']]
+        # 是否由大到小排列（最小的对应最大的值）
+        if reverse:
+            # alpha-keep为False的记录自动补nan
+            market[name] = Rank(-market_factor[factor])
+        else:
+            market[name] = Rank(market_factor[factor])
+    else:
+        if reverse:
+            market[name] = Rank(-market_[factor])
+        else:
+            market[name] = Rank(market_[factor])
+    return market
+    
 def batch_carry(market, factor_name, left, right,intervals=1, comm=7, max_vol=0.1, price='open'):
     # 初始化
     def init1(self):

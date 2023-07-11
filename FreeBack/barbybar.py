@@ -316,7 +316,7 @@ class World():
                 self.log_warning('future delist----delist date: %s, code: %s'%(future_date, code))
                 return True
         return False
-    # 转债专用
+    # 转债专用 转债退市前2-4周会有公告，所以当出现公告时检查退市没有用到未来数据
     def convertible_delist(self, code, n=10):
         i = 1
         future_date = self.barline[self.bar_n]
