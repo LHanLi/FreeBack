@@ -1,6 +1,8 @@
 # ---------FreeBack---------------
 
-python script for quant( provide comprehensive index and backtesting structure)
+alpha: 因子测试及检验
+barbybar： 事件驱动回测
+post： 后处理模块
 
 # -------INSTALL--------------
 Manual:     
