@@ -46,7 +46,7 @@ class Post():
         return_total = self.net[-1]/self.net[0]
         self.return_annual = return_total**(1/years)-1
         # 年化波动率 shrpe
-        self.std_annual = np.exp(np.std(np.log(self.returns+1))*np.sqrt(250)) - 1
+        self.std_annual = np.std(np.log(self.returns+1))*np.sqrt(250)
 #        self.std_annual = np.std(np.log(self.returns))*np.sqrt(250) 
         self.sharpe = (self.return_annual - self.rf)/self.std_annual
         # 回撤
@@ -67,7 +67,7 @@ class Post():
             # 计算夏普
             years = (timerange[1]-timerange[0]).days/365
             return_annual = (net[-1]/net[0])**(1/years)-1
-            std_annual = np.exp(np.std(np.log(returns))*np.sqrt(250)) - 1
+            std_annual = np.std(np.log(returns+1))*np.sqrt(250)
             sharpe = (return_annual - self.rf)/std_annual
             ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
