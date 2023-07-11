@@ -48,63 +48,6 @@ def get_market(market):
         return market_factor, market_price, market_price[market_price['vol']!=0]
 
 
-# 因子库
-class Factors():
-    # 因子值由market数据生成，日期为所使用数据的全部bar中最后一根
-    def __init__(self, market):
-        self.market = market
-
-# 量价因子   Volume Price
-
-# 可转债因子 Convertiable Bond    yu_e  zhuangujia dur_days  正股数据(a_***)
-# 估值类因子
-# 转股溢价率
-    def CB_premium(self):
-        factor = self.market['close'] * self.market['zhuangujia']/(self.market['a_close']) - 100
-        return pd.DataFrame(factor.rename('factor'))
-# 区间溢价率 在其平价附近区间内的转股溢价率排名百分比
-
-# 收盘价
-    def CB_cheap(self):
-        factor = self.market['close']
-        return pd.DataFrame(factor.rename('factor'))
-# 双低值
-    def CB_DoubleCheap(self):
-        factor = self.market['close'] + self.market['close'] * self.market['zhuangujia']/(self.market['a_close']) - 100
-        return pd.DataFrame(factor.rename('factor'))
-# 上市时间
-    def CB_durdays(self):
-        factor = self.market['dur_days']
-        return pd.DataFrame(factor.rename('factor'))
-# 余额   yu_e 单位为亿元，表示面值100的张数对应的余额 即1yu_e为1e6张转债
-    def CB_yue(self):
-        factor = self.market['yu_e']
-        return pd.DataFrame(factor.rename('factor'))
-# 市值   
-    def CB_cap(self):
-        factor = self.market['yu_e']*1e6 * self.market['close']
-        return pd.DataFrame(factor.rename('factor'))
-# 市值与正股市值占比(与溢价率高度相关)
-    def CB_capr(self):
-        factor = (self.market['close']*self.market['yu_e']*1e6)/(self.market['a_free_circulation']*self.market['a_close'])
-        return pd.DataFrame(factor.rename('factor'))
-# 换手率
-    def CB_turnover(self):
-        factor = self.market['vol']/(1e6*self.market['yu_e'])
-        return pd.DataFrame(factor.rename('factor'))
-# 正股20日波动率 内日收益率波动
-    def CB_volatility(self):
-        factor = self.market['a_HV_20']
-        return pd.DataFrame(factor.rename('factor'))
-
-# 组合因子
-# 双低加小市值
-    def CB_alpha0(self):
-        factor0 = self.CB_DoubleCheap()
-        factor1 = self.CB_cap()
-        return Rank(factor0)+Rank(factor1)
-
-# 指数
 
 # 因子投资组合
 class Portfolio():
