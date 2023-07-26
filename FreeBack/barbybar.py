@@ -30,10 +30,10 @@ class Order():
 class World():
 # 初始化  market(DataFrame)， 初始资金， 交易成本（万），
 # 单根k线最大成交量限制，  撮合价格，  最大接收订单数（订单queue长度），
-# 初始持仓
+# 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market, init_cash = 1000000, comm = 7, 
                  max_vol_perbar=0.1, price='open', tradetype=None, 
-                 init_df_hold=None,
+                 init_stat=None,
                  ):
         self.temp_log = ''
         self.error_log = ''
@@ -79,8 +79,15 @@ class World():
         # 初始持仓为0
         df_hold.loc[self.barline[0]] = {}
         # 初始持仓不为0
-        if init_df_hold != None:
-            pass
+        if type(init_stat) != type(None):
+            for i in init_stat.index:
+                if i in df_hold.columns:
+                    df_hold[i] = init_stat[i]
+                elif i == 'cash':
+                    init_cash = init_stat[i]
+                else:
+                    df_hold[i] = init_stat[i]
+                    print('no code %s in market'%i)
         self.df_hold = df_hold.fillna(0)
     # cur_hold 当前持仓 当前bar持仓不为0的代码， index为code   vol为持有张数  amount为持有金额
         cur_hold_vol = self.df_hold.loc[self.barline[0]]
