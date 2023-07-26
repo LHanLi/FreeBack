@@ -28,10 +28,13 @@ class Order():
 
 
 class World():
-# 初始化  market(DataFrame)， 初始资金， 交易成本（万）
-# 单根k线最大成交量限制，       最大接收订单数（订单queue长度）
+# 初始化  market(DataFrame)， 初始资金， 交易成本（万），
+# 单根k线最大成交量限制，  撮合价格，  最大接收订单数（订单queue长度），
+# 初始持仓
     def __init__(self, market, init_cash = 1000000, comm = 7, 
-                 max_vol_perbar=0.1, price='open', tradetype=None):
+                 max_vol_perbar=0.1, price='open', tradetype=None, 
+                 init_df_hold=None,
+                 ):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
@@ -75,6 +78,9 @@ class World():
         df_hold.index.name = 'date'
         # 初始持仓为0
         df_hold.loc[self.barline[0]] = {}
+        # 初始持仓不为0
+        if init_df_hold != None:
+            pass
         self.df_hold = df_hold.fillna(0)
     # cur_hold 当前持仓 当前bar持仓不为0的代码， index为code   vol为持有张数  amount为持有金额
         cur_hold_vol = self.df_hold.loc[self.barline[0]]
