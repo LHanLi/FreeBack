@@ -47,6 +47,34 @@ def get_market(market):
         market_factor = market[market['alpha-keep']]
         return market_factor, market_price, market_price[market_price['vol']!=0]
 
+# 单因子评价  
+# 直接market_factor标准的market以及因子column名
+class EvalFactor():
+    def __init__(self, factor, price, periods=(1, 5, 20)):
+        # 如果需要排除
+        #if 'alpha-keep' in market.columns:
+        #    market = market[market['alpha-keep']]
+        # 因子
+        #factor = market[[factor_name]].rename(columns={factor_name:'factor'})
+        # 输出结果 列：因子指标  行：时间周期
+        result = pd.DataFrame(columns = ['IC', 'ICIR'])
+        result.index.name='period'
+        for period in periods:
+            # 预测收益率  预测n期收益率
+            returns = (price - price.shift(period))/price.shift(period)
+            returns = returns.shift(-period)
+            returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
+            # 合并df
+            df_corr = pd.concat([factor, returns], axis=1).dropna()
+            # 计算IC序列
+            df_corr = df_corr.groupby('date').corr(method='spearman')
+            IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
+            # 因子指标
+            IC = IC_series.mean()
+            ICIR = IC/IC_series.std()
+            record = {'IC':IC, 'ICIR':ICIR}
+            result.loc[period] = record
+        self.result = result
 
 
 # 因子投资组合
@@ -58,7 +86,7 @@ class Portfolio():
 # holdweight 持仓权重矩阵  例如流通市值 
     def __init__(self, factor, price, price_return, holdweight=None, cheat = True):
         self.cheat = cheat
-#        # 先按照截面排序归一化  
+#        # 先按照截面排序归一化
 #        self.factor = Rank(factor)
         self.factor = factor
         # 一个确定持有张数（不去除停牌），一个确定收益率(去除停牌)
@@ -79,8 +107,11 @@ class Portfolio():
             returns = price_return.shift(-1)/price_return - 1
             returns = returns.fillna(0)
             self.returns = returns
+        # 结果dataframe 行：时间周期  列：IC、ICIR（分组计算的IC、ICIR(非rank)）、多空平均换手率、 多空组合、多头组合、市场组合的年化收益、夏普比率
+        self.result = pd.DataFrame(columns=['IC', 'ICIR', 'turnover', 'L&S return', 'L return', 'market return', 'L&S sharpe', 'L sharpe', 'market sharpe'])
+        self.result.index.name = 'holding period'
 # 全部区间 return
-# divide 
+# divide
     def run(self, divide = (0, 0.2, 0.4, 0.6, 0.8, 1), periods=(1, 5, 20), justdivide=False):
         self.periods = periods
         # 最后一个区间为（0，1）表示等权配置收益指数
@@ -100,6 +131,8 @@ class Portfolio():
         self.matrix_lr()
         self.matrix_holdn()
         self.matrix_turnover()
+        if not justdivide:
+            self.get_result()
 
 # plot
 # 因子组合收益（单边做多，考虑交易成本（默认单边万7））
@@ -152,7 +185,7 @@ class Portfolio():
         LS = (self.mat_lr[i_period][-2] - self.mat_lr[i_period][0]).cumsum()
         factor_return =  100*(np.exp(LS[-1])**(365/(LS.index[-1]-LS.index[0]).days)-1) 
         ax.plot(LS, c='C0', label='L&S  anu.{r:.2f}%'.format(r=factor_return))
-        ax.legend()
+        #ax.legend()
         ax.set_title('Period: %d bar(s)'%self.periods[i_period])
         ax.set_ylabel('Cumulative Log Return')
         ax.set_xlabel('Date')
@@ -248,6 +281,44 @@ class Portfolio():
 #            list_turnover = [i.mean()*250 for i in list_turnover]
             mat_turnover.append(list_turnover)
         self.mat_turnover = mat_turnover
+    def get_result(self):
+        # 每一个period
+        for i in range(len(self.periods)):
+            #  每一个分组 每个时刻的每个分组收益率对其分组序号做回归
+            df_corr = pd.DataFrame()
+            for j in range(len(self.a_b)-1):
+                returns = pd.DataFrame(self.mat_returns[i][j])
+                returns['factor']=j
+                df_corr = pd.concat([df_corr, returns])
+            df_corr = df_corr.groupby('date').corr()
+            IC_series = df_corr.loc[(slice(None), 'factor'), 0]
+            # 因子指标
+            IC = IC_series.mean()
+            ICIR = IC/IC_series.std()
+            # 年化收益率和sharpe ratio
+            duryears = (self.returns.index[-1] - self.returns.index[0]).days/365
+            # 多空组合
+            LS_returns = self.mat_lr[i][-2] - self.mat_lr[i][0]
+            LS_std = LS_returns.std()*np.sqrt(250)
+            LS_return_annual = np.exp(LS_returns.sum()/duryears) - 1
+            LS_sharpe = (LS_return_annual-0.03)/LS_std
+            # 多头组合
+            L_returns = self.mat_lr[i][-2] 
+            L_std = L_returns.std()*np.sqrt(250)
+            L_return_annual = np.exp(L_returns.sum()/duryears) - 1
+            L_sharpe = (L_return_annual-0.03)/L_std
+            # 市场组合
+            M_returns = self.mat_lr[i][-1] 
+            M_std = M_returns.std()*np.sqrt(250)
+            M_return_annual = np.exp(M_returns.sum()/duryears) - 1
+            M_sharpe = (M_return_annual-0.03)/M_std
+            # 多空组合换手率
+            turnover = 0.5*self.mat_turnover[i][-2].mean()*250 + 0.5*self.mat_turnover[i][0].mean()*250
+            record = {'IC':IC, 'ICIR':ICIR, 'turnover':turnover, 'L&S return': LS_return_annual, 
+                      'L return':L_return_annual, 'market return':M_return_annual,
+                      'L&S sharpe':LS_sharpe, 'L sharpe':L_sharpe, 'market sharpe':M_sharpe} 
+            self.result.loc[self.periods[i]] = record
+
 
 
 # 单独对某因子策略分析

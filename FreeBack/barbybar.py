@@ -1,6 +1,7 @@
 import pandas as pd
-import numpy as np 
+import numpy as np
 from queue import PriorityQueue
+import re 
 
 
 # 订单类
@@ -30,13 +31,15 @@ class World():
 # 初始化  market(DataFrame)， 初始资金， 交易成本（万）
 # 单根k线最大成交量限制，       最大接收订单数（订单queue长度）
     def __init__(self, market, init_cash = 1000000, comm = 7, 
-                 max_vol_perbar=1, max_order=100, tradetype='convertible'):
-        self.error_log = []
-        self.warning_log = []
+                 max_vol_perbar=0.1, price='open', tradetype=None):
+        self.temp_log = ''
+        self.error_log = ''
+        self.warning_log = ''
         self.market = market
         self.init_cash = init_cash
         self.comm = comm/10000
         self.max_vol_perbar = max_vol_perbar
+        self.price = price
         self.tradetype = tradetype
 
     # barline 时间线（run函数遍历barline）
@@ -49,19 +52,19 @@ class World():
         self.cur_market = self.market.loc[self.cur_bar]
 
     # queue_order 订单队列（每个bar开始前检查策略在上一个bar发出的订单，并且执行）
-        self.queue_order = PriorityQueue(max_order)
+        self.queue_order = PriorityQueue()
     # df_excute 订单执行记录（所有被执行订单会被记录到df_excute中）
         # columns:
         # 日期(订单执行），代码，买卖类型，执行价，发生数量，
         # 发生金额， 交易成本， 剩余现金， 执行状态， 
         # 订单报价类型（限价单、特定规则（平均价成交等））， 订单报价张数
         temp = ['date', 'code', 'BuyOrSell', 'price', 'occurance_vol', 
-                'occurance_amount', 'comm', 'remain_cash', 'stat',
-            'orderprice', 'ordervol']
+                'occurance_amount', 'comm', 'remain_vol', 'remain_amount',
+                'remain_cash', 'stat', 'orderprice', 'ordervol']
         self.df_excute = pd.DataFrame(columns = temp)
         # 为df添加行、列名
         self.df_excute.columns.name = 'head'
-        self.df_excute.index.name = 'date'
+        self.df_excute.index.name = 'unique'
         # index: 订单唯一id(每个订单被加入到df_excute之后+1)
         self.unique = 0
         
@@ -77,11 +80,6 @@ class World():
         cur_hold_vol = self.df_hold.loc[self.barline[0]]
         self.cur_hold_vol = cur_hold_vol[cur_hold_vol != 0]
         self.cur_hold_amount = (self.cur_hold_vol*self.cur_market['close']).dropna()  
-    # dict_hold 持仓字典 只显示不为0的持仓 key为barline value为cur_hold_(vol/amount)
-        self.dict_hold_vol = {}
-        self.dict_hold_vol[self.barline[0]] = self.cur_hold_vol
-        self.dict_hold_amount = {}
-        self.dict_hold_amount[self.barline[0]] = self.cur_hold_amount 
         
     # series_cash 每bar持有现金   index为barline value为float
         self.series_cash = pd.Series(dtype = object)
@@ -93,11 +91,20 @@ class World():
     
     # log函数
     def log(self, notice):
-        print(self.cur_bar, notice)
+        log_str = str(self.cur_bar) + ', ' + notice 
+        # 每行显示150个字符
+        log_str = re.sub(r'(.{150})', '\\1\n', log_str) 
+        self.temp_log += (log_str + '\n')
     def log_warning(self, notice):
-        self.warning_log.append(str(self.cur_bar) + '    ' + notice)
+        log_str = str(self.cur_bar) + ', ' + notice 
+        log_str = re.sub(r'(.{150})', '\\1\n', log_str) 
+        self.warning_log += (log_str + '\n')
     def log_error(self, notice):
-        self.error_log.append(str(self.cur_bar) + '    ' + notice)
+        log_str = str(self.cur_bar) + ', ' + notice + '\n'
+        log_str = re.sub(r'(.{150})', '\\1\n', log_str)
+        self.error_log += (log_str + '\n')
+        # 错误需要直接跳出提示
+        print(log_str)
     # 提交订单函数
     def sub_order(self, order):
         self.queue_order.put(order)
@@ -110,8 +117,7 @@ class World():
     def update_hold(self, code, final_vol):
         self.df_hold.loc[self.cur_bar, code] = final_vol
         cur_hold = self.df_hold.loc[self.cur_bar]
-        self.cur_hold_vol = cur_hold[cur_hold != 0].sort_values(ascending=False)   
-        self.dict_hold_vol[self.cur_bar] = self.cur_hold_vol
+        self.cur_hold_vol = cur_hold[cur_hold != 0]
     # 更新现金函数
     def update_cash(self, cash):
         self.cur_cash = cash
@@ -120,7 +126,6 @@ class World():
     # 更新净值函数 包含更新hold amount
     def update_net(self):
         self.cur_hold_amount = (self.cur_hold_vol * self.cur_market['close']).loc[self.cur_hold_vol.index].sort_values(ascending=False) 
-        self.dict_hold_amount[self.cur_bar] = self.cur_hold_amount
         hold_amount = self.cur_hold_amount
         name_hold = hold_amount.index
         name_notnan = hold_amount[~np.isnan(hold_amount)].index
@@ -129,37 +134,49 @@ class World():
         if name_delist != []:
             self.log_error('hold lost----delist list: %s'%name_delist)
         # 按照最后一个bar的收盘价计算价值
-        lost_amount = 0
+        # 将剔除持仓，lost_amount换为现金 
         for code in name_delist:
             price = self.market['close'].loc[:,code,:].iloc[-1]
-            lost_amount += price * self.cur_hold_vol[code]
-        self.cur_net = hold_amount.sum() + lost_amount + self.cur_cash
+            lost_amount = price * self.cur_hold_vol[code]
+            self.update_hold(code, 0)
+            self.update_cash(self.cur_cash+lost_amount)
+        self.cur_net = hold_amount.sum() + self.cur_cash
         self.series_net.loc[self.cur_bar] = self.cur_net
 
     # 提交订单函数
-    def buy(self, code, vol = None, price = 'split'):
-        # 默认卖出全部
+    def buy(self, code, vol = None):
+        # 默认满仓买入
         if vol == None:
             vol = self.cur_net/self.cur_market['close'].loc[code]
-            order = Order('Buy', code, vol, price)
+            order = Order('Buy', code, vol, self.price)
             self.sub_order(order)
         else:
             # amount为正表示做多 为负表示做空
-            order = Order('Buy', code, vol, price)
+            order = Order('Buy', code, vol, self.price)
             self.sub_order(order)
-    def sell(self, code = None, vol = None, price = 'split'):
+    def sell(self, code = None, vol = None):
         # 无参数时默认清仓
         if code == None:
             for code,vol in self.cur_hold_vol.items():
-                order = Order('Sell', code, vol, 'split')
+                order = Order('Sell', code, vol, self.price)
                 self.sub_order(order)
         elif vol == None:
             self.cur_hold_vol
-            order = Order('Sell', code, self.cur_hold_vol[code], price)
+            order = Order('Sell', code, self.cur_hold_vol[code], self.price)
             self.sub_order(order)
         else:
-            order = Order('Sell', code, vol, price)
+            order = Order('Sell', code, vol, self.price)
             self.sub_order(order)
+
+    # 交易员订单
+    def trade_amountbuy(self, code, amount):
+        pass
+    def trade_amountsell(self, code, amount):
+        pass
+    def trade_buyhold(self, code, nbars):
+        pass
+    def trade_buystop(self, code, amount):
+        pass
 
     # 执行订单部分
 #    @staticmethod
@@ -177,13 +194,21 @@ class World():
         # 保证order.code在当前可交易code中
         inmarket = True
         try:
-            #self.cur_market.loc[order.code]
             if self.cur_market['vol'].loc[order.code]==0:
-                self.log_warning('excute sus----code: %s, unique:%s'%(order.code, self.unique+1))
+                self.log_warning('try excute sus----code: %s, unique:%s'%(order.code, self.unique+1))
+                try:
+                    remain_vol = self.cur_hold_vol.loc[order.code]
+                except:
+                    remain_vol = 0
+                try:
+                    remain_amount = self.cur_hold_amount.loc[order.code]
+                except:
+                    remain_amount = 0
                 # 交割单
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                             'price':0, 'occurance_vol':0, 'occurance_amount':0, 
-                            'comm':0, 'remain_cash': self.cur_cash, 'stat':'sus code',
+                            'comm':0, 'remain_vol':remain_vol, 'remain_amount':remain_amount,
+                              'remain_cash': self.cur_cash, 'stat':'sus code',
                                 'orderprice':order.price, 'ordervol':order.vol}
                 # update
                 self.update_order(excute_log)
@@ -191,10 +216,19 @@ class World():
         except:
             # 没有找到code不发生交易
             self.log_error('excute 404----code: %s, unique:%s'%(order.code, self.unique+1))
+            try:
+                remain_vol = self.cur_hold_vol.loc[order.code]
+            except:
+                remain_vol = 0
+            try:
+                remain_amount = self.cur_hold_amount.loc[order.code]
+            except:
+                remain_amount = 0
             # 交割单
             excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                             'price':0, 'occurance_vol':0, 'occurance_amount':0, 
-                            'comm':0, 'remain_cash': self.cur_cash, 'stat':'404 code',
+                            'comm':0, 'remain_vol':remain_vol, 'remain_amount':remain_amount,
+                            'remain_cash': self.cur_cash, 'stat':'404 code',
                                 'orderprice':order.price, 'ordervol':order.vol}
             self.update_order(excute_log)
             inmarket = False
@@ -273,22 +307,26 @@ class World():
                 # 交易处理完成后现金、持仓变化。
                 cur_cash_ = self.cur_cash - vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
+                final_amount = final_vol * self.cur_market.loc[order.code]['close']
                 comm_cost = vol*price*self.comm
                 cur_cash_ = cur_cash_ - comm_cost
                 # 订单执行记录
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
-                            'comm':comm_cost, 'remain_cash': cur_cash_, 'stat':stat,
+                            'comm':comm_cost, 'remain_vol':final_vol, 'remain_amount':final_amount,
+                            'remain_cash': cur_cash_, 'stat':stat,
                             'orderprice':order.price, 'ordervol':order.vol}
             # order.type == ‘Sell'
             else:
                 cur_cash_ = self.cur_cash + vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
+                final_amount = final_vol * self.cur_market.loc[order.code]['close']
                 comm_cost = vol*price*self.comm
                 cur_cash_ = cur_cash_ - comm_cost
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
-                            'comm':comm_cost, 'remain_cash': cur_cash_, 'stat':stat,
+                            'comm':comm_cost, 'remain_vol':final_vol, 'remain_amount':final_amount,
+                            'remain_cash': cur_cash_, 'stat':stat,
                                     'orderprice':order.price, 'ordervol':order.vol}
             # 更新World中信息
             self.update_order(excute_log)     # 交割单
@@ -326,15 +364,15 @@ class World():
             try:
                 # 非查无此合约
                 vol = self.market['vol'].loc[future_date, code]
+                # 有强赎、退市、兑付公告，则成交量为0代表退市
                 if vol == 0:
-                    # 有强赎、退市、兑付公告，则成交量为0代表退市
                     if self.cur_market['announce'].loc[code] == 'Q1' or self.cur_market['announce'].loc[code] == 'F' or self.cur_market['announce'].loc[code] == 'T': 
                         return True
             except:
                 # 当期未退市
                 try:
                 # 没有强赎、退市、兑付公告则使用未来函数
-                    if self.cur_market['announce'].loc[code] != 'Q1' and self.cur_market['announce'].loc[code] == 'F' and self.cur_market['announce'].loc[code] != 'T': 
+                    if self.cur_market['announce'].loc[code] != 'Q1' and self.cur_market['announce'].loc[code] != 'F' and self.cur_market['announce'].loc[code] != 'T': 
                         self.log_warning('future delist----delist date: %s, code: %s'%(future_date, code))
                     return True
                 except:
@@ -348,17 +386,18 @@ class World():
         for bar_ in range(len(self.barline)):
 #            self.log('%s'%bar_)
         # regular
-            self.log('new bar')
             # 当前bar 日期
             self.bar_n = bar_
+            self.log('new bar')
             self.cur_bar = self.barline[bar_]
             self.cur_market = self.market.loc[self.cur_bar]
             # 更新账户状态 (默认与之前相同，防止没有订单情况)
             self.df_hold.loc[self.cur_bar] = self.df_hold.iloc[-1]
-            self.dict_hold_vol[self.cur_bar] = self.cur_hold_vol
-            self.dict_hold_amount[self.cur_bar] = self.cur_hold_amount
             self.update_cash(self.cur_cash)
             self.update_net()
+
+            # 交易员下单
+#            self.trade()
 
         # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
             self.log('excute yesterbar order')
@@ -366,14 +405,24 @@ class World():
                 # 接收订单
                 order = self.queue_order.get()
                 self.excute(order)
+        
+        # 更新过hold之后再次更新净值
+            self.update_net()
             
             self.log('run strategy')
         # 策略部分
             self.strategy()
             self.log('end bar')
             
-        # 更新过hold之后再次更新净值
-            self.update_net()
+        # log写入文件
+        f = open('barbybar_log.txt', 'w')
+        f.write('Regular log: \n\n\n')
+        f.write(self.temp_log)
+        f.write('\n\n\nError log: \n\n\n')
+        f.write(self.error_log)
+        f.write('\n\n\nWarning log: \n\n\n')
+        f.write(self.warning_log)
+        f.close()
         
     # 开启作弊 则用当前bar执行交易
     def cheat_run(self):
@@ -383,15 +432,13 @@ class World():
 
     # 遍历每个bar
         for bar_ in range(len(self.barline)):
-            self.log('new bar')
         # regular
             self.bar_n = bar_
+            self.log('new bar')
             self.cur_bar = self.barline[bar_]
             self.cur_market = self.market.loc[self.cur_bar]
             # 更新账户状态 (默认与之前相同，防止没有订单情况)
             self.df_hold.loc[self.cur_bar] = self.df_hold.iloc[-1]
-            self.dict_hold_vol[self.cur_bar] = self.cur_hold_vol
-            self.dict_hold_amount[self.cur_bar] = self.cur_hold_amount
             self.update_cash(self.cur_cash)
             self.update_net()
         # 策略 
@@ -404,4 +451,10 @@ class World():
                 self.excute(order)
             self.update_net()
             self.log('end bar')
+
+
+
+
+
+
 

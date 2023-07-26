@@ -3,7 +3,7 @@ from FreeBack.FreeBack.alpha import *
 import copy
 
 
-# 因子持有策略
+# 复制因子持有策略
 # 如果是持有百分位的话需要先排除掉alpha-keep不选择的再进行排序
 def getRank(market_, factor, reverse=False):
     name = 'rank_' + factor
@@ -29,12 +29,10 @@ def batch_carry(market, factor_name, left, right,intervals=1, comm=7, max_vol=0.
         self.interval = 0
     
     intervals = intervals
-    # 保持持有转股溢价率最低*只转债，仓位平均
     def strat1(self):
         if self.interval%intervals == 0:
             # 是否排除
             if 'alpha-keep' in market.columns:
-            # 本期满足要求 
                 cur_market = self.cur_market[self.cur_market['alpha-keep']]
             else:
                 cur_market = self.cur_market
