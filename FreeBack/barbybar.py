@@ -297,6 +297,11 @@ class World():
         # 可转债最小交易单位为10张
         if self.tradetype == 'convertible':
             return vol - vol%10
+        # 可转债拆单，最小成交为30张
+        elif self.tradetype == 'convertible_split':
+            if vol <= 30:
+                return 0
+            return vol - vol%10
         elif self.tradetype == 'stock':
             return vol - vol%100
         else:
