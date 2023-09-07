@@ -197,10 +197,11 @@ class Post():
         self.excute = world.df_excute.reset_index().set_index(['date', 'code', 'unique'])
         # 换手率
         occurance_amount = self.excute['occurance_amount'].groupby('date').sum()
-        turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
-        self.turnover = turnover.sum()/years
+        #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
+        turnover = (occurance_amount/world.series_net).fillna(0)
+        self.turnover = turnover.mean()*250
 # 净值曲线
-    def pnl(self, timerange=None, filename=None):
+    def pnl(self, timerange=None, filename=None, log=False, excess=True):
         plt, fig, ax = matplot()
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
@@ -215,7 +216,8 @@ class Post():
             ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
             if type(self.benchmark) != type(None):
-                benchmark = self.benchmark.loc[timerange[0]:timerange[1]]
+                benchmark = self.benchmark.loc[timerange[0]:timerange[1]].copy()
+                benchmark.loc[timerange[0]] = 0
         # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):
@@ -231,16 +233,21 @@ class Post():
         # 净值与基准
             ax.plot(self.net, c='C0', label='策略')
             if type(self.benchmark) != type(None):
-                # benchmark 匹配回测时间段
-                benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]]
+                # benchmark 匹配回测时间段, 基准从0开始
+                benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
+                benchmark.loc[self.net.index[0]] = 0
                 # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):
                     ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(),  c=colors_list[i], label=benchmark.columns[i])
-                # 超额收益 self.lr - np.log(benchmark[benchmark.columns[0]]+1)
-                self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
-                ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
-                plt.legend()
+                if excess:
+                    # 超额收益 self.lr - np.log(benchmark[benchmark.columns[0]]+1)
+                    self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
+                    ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
+                plt.legend(loc='upper left')
+            if log:
+                # 对数坐标显示
+                plt.yscale("log")
             # 回撤
             ax2 = ax.twinx()
             ax2.fill_between(self.drawdown.index,-100*self.drawdown, 0, color='C1', alpha=0.1)

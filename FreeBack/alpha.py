@@ -12,87 +12,61 @@ def Rank(factor):
   # normlize
     return rank/rank.groupby('date').max()
 
+
+# 为了使得并行回测尽可能与事件驱动框架结果接近：
+# 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
 # 得到factor(确定持仓), price（确定权重）, price_return（确定收益率）分别对应的market_factor, market_price, market_return
 # 如果需要排除需要在market中添加一列“alpha-keep”为True为保留，False为排除
 def get_market(market):
     if 'alpha-keep' not in market.columns:
-        return market, market, market[market['vol']!=0]
+        #return market, market, market[market['vol']!=0]
+        #return market[market['vol']!=0], market
+        return market, market
     else:
-    # market_price 为了防止未来函数保留alpha-keep为False的第一个记录
-        select = market[['alpha-keep']]
-        # 获取alpha-keep的滚动和，第一次出现时记为2
-        # inde必须为 'code'和'date'，并且code内部的date排序
-        select = select.reset_index()
-        select = select.sort_values(by='code')
-        select = select.set_index(['code','date'])
-        select = select.sort_index(level=['code','date'])
-        # 计算sum
-        select['alpha-keep_RollingSum_2'] =  select.groupby('code', sort=False).rolling(2)['alpha-keep'].sum().values
-        # 将index变回 date code
-        select = select.reset_index()
-        select = select.sort_values(by='date')
-        select = select.set_index(['date','code'])
-        select = select.sort_index(level=['date','code']) 
-        #select = my_pd.cal_RollingSum(select, 'alpha-keep', 2)
-        # 第一次出现的为np.nan，alpha-keep为True时改为2，否则改为1 
-        def replace(keep):
-            if keep:
-                return 2
-            else:
-                return 1
-        select['alpha-keep_RollingSum_2'] = select.apply(lambda x: replace(x['alpha-keep']) if np.isnan(x['alpha-keep_RollingSum_2'])  else x['alpha-keep_RollingSum_2'], axis=1) 
-        select_index =  select[select['alpha-keep'] | (select['alpha-keep_RollingSum_2']==1)].index
-        market_price = market.loc[select_index] 
-        # 确定持仓,排除的不要
+    ## market_price 为了防止未来函数保留alpha-keep为False的第一个记录
+    #    select = market[['alpha-keep']]
+    #    # 获取alpha-keep的滚动和，第一次出现时记为2
+    #    # inde必须为 'code'和'date'，并且code内部的date排序
+    #    select = select.reset_index()
+    #    select = select.sort_values(by='code')
+    #    select = select.set_index(['code','date'])
+    #    select = select.sort_index(level=['code','date'])
+    #    # 计算sum
+    #    select['alpha-keep_RollingSum_2'] =  select.groupby('code', sort=False).rolling(2)['alpha-keep'].sum().values
+    #    # 将index变回 date code
+    #    select = select.reset_index()
+    #    select = select.sort_values(by='date')
+    #    select = select.set_index(['date','code'])
+    #    select = select.sort_index(level=['date','code'])
+    #    #select = my_pd.cal_RollingSum(select, 'alpha-keep', 2)
+    #    # 第一次出现的为np.nan，alpha-keep为True时改为2，否则改为1 
+    #    def replace(keep):
+    #        if keep:
+    #            return 2
+    #        else:
+    #            return 1
+    #    select['alpha-keep_RollingSum_2'] = select.apply(lambda x: replace(x['alpha-keep']) if np.isnan(x['alpha-keep_RollingSum_2'])  else x['alpha-keep_RollingSum_2'], axis=1) 
+    #    select_index =  select[select['alpha-keep'] | (select['alpha-keep_RollingSum_2']==1)].index
+    #    market_price = market.loc[select_index] 
+    #    # 确定持仓,排除的不要
+    #    #market_factor = market[market['alpha-keep']]
         market_factor = market[market['alpha-keep']]
-        return market_factor, market_price, market_price[market_price['vol']!=0]
+        #return market_factor, market_price, market_price[market_price['vol']!=0]
+        return market_factor, market
 
-# 单因子评价  
-# 直接market_factor标准的market以及因子column名
-class EvalFactor():
-    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
-        # 如果需要排除
-        #if 'alpha-keep' in market.columns:
-        #    market = market[market['alpha-keep']]
-        # 因子
-        #factor = market[[factor_name]].rename(columns={factor_name:'factor'})
-        # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['IC', 'ICIR'])
-        result.index.name='period'
-        # 多周期IC序列
-        IC_dict = {}
-        for period in periods:
-            # 预测收益率  预测n期收益率
-            returns = (price.shift(-period) - price)/price
-            #returns = returns.shift(-period)
-            returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
-            # 合并df
-            df_corr = pd.concat([factor, returns], axis=1).dropna()
-            # 计算IC序列
-            df_corr = df_corr.groupby('date').corr(method='spearman')
-            IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
-            IC_dict[period] = IC_series
-            # 因子指标
-            IC = IC_series.mean()
-            ICIR = IC/IC_series.std()
-            record = {'IC':IC, 'ICIR':ICIR}
-            result.loc[period] = record
-        self.result = result
-        # 多周期平均IC序列
-        IC_series = IC_dict[periods[0]]
-        for period in periods[1:]:
-            IC_series += IC_dict[period]
-        IC_series =  IC_series/len(periods)
-        self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+
 
 # 因子投资组合
 class Portfolio():
-# 作弊模式    当日因子确定当日持仓 当日收益率为当日收盘价相对昨日收盘价收益率  每日收益率由当日收益率*前一日持仓获得
+# 当日收益率为当日收盘价相对昨日收盘价收益率*前一日持仓权重
+# 作弊模式    当日因子确定当日持仓 
 # df_market.pivot_table('close','date','code')
-# 不开启作弊  当日因子确定明日持仓 当日收益率为明日开盘价相对当日开盘价收益率  当日持仓加权 
+# 不开启作弊  当日因子确定明日持仓 使用开盘价结算 
 # df_market.pivot_table('open', 'date', 'code') 
-# holdweight 持仓权重矩阵  例如流通市值 
-    def __init__(self, factor, price, price_return, holdweight=None, cheat = True, comm=0.5):
+# holdweight 持仓权重矩阵  例如流通市值
+# comm 不影响结果，仅仅在result中给出多头费后年化收益率 
+    #def __init__(self, factor, price, price_return, holdweight=None, cheat = True, comm=0.5):
+    def __init__(self, factor, price, holdweight=None, cheat = False, comm=0.5):
         self.comm = comm
         self.cheat = cheat
 #        # 先按照截面排序归一化
@@ -106,20 +80,20 @@ class Portfolio():
             self.holdweight = holdweight.apply(lambda x: x/x.sum(), axis=1)
         else:
             self.holdweight = None
-        if self.cheat:
+        #if self.cheat:
             # 每日收益率(当日收盘相比上日收盘)
-            returns = price_return/price_return.shift() - 1
-            returns = returns.fillna(0)
-            self.returns = returns
-        else:
-            # 次日开盘相对当日开盘收益率
-            returns = price_return.shift(-1)/price_return - 1
-            returns = returns.fillna(0)
-            self.returns = returns
+        returns = price/price.shift() - 1
+        returns = returns.fillna(0)
+        self.returns = returns
+        #else:
+        #    # 次日开盘相对当日开盘收益率
+        #    returns = price_return.shift(-1)/price_return - 1
+        #    returns = returns.fillna(0)
+        #    self.returns = returns
         # 结果dataframe 行：时间周期  列：IC、ICIR（分组计算的IC、ICIR(非rank)）、 多空组合收益、多头收益、 等权收益、
         # 考虑换手率多空收益、 夏普、 多空平均换手率
-        self.result = pd.DataFrame(columns=['IC', 'ICIR', 'L&S return', 'L return', 'market return', 
-               'real return', 'L&S sharpe', 'L sharpe', 'market sharpe', 'turnover'])
+        self.result = pd.DataFrame(columns=['group IC', 'group ICIR', 'L&S return', 'L return', 'market return', 
+                'L&S sharpe', 'L sharpe', 'market sharpe', 'real return', 'real sharpe', 'turnover'])
         self.result.index.name = 'holding period'
 # 全部区间 return
 # divide
@@ -200,13 +174,14 @@ class Portfolio():
         ax.set_title('Period: %d bar(s)'%self.periods[i_period])
         ax.set_ylabel('Cumulative Log Return')
         ax.set_xlabel('Date')
+        plt.gcf().autofmt_xdate()
         plt.savefig("LogCompare.png")
         plt.show()
 
 # mat[period][factor range]  list[factor range]
 # 获得每个持仓周期 每个因子区间的 hold （虚拟持仓 只保证比例关系正确, 和为1)  a_b factor range from a to b 区间内市值等权重
     def matrix_hold(self):
-    # 每个bar按因子需要的持仓
+    # 每个bar按标的等权配置需要的持仓
         factor = self.factor.reset_index()
         # 选取因子值 满足a_b list中全部条件的 放置于list_hold (前开后闭，与Rank函数返回的(0，1]对应)
         bar_hold = [factor[(i[0]<factor['factor']) & (factor['factor']<=i[1])] for i in self.a_b]
@@ -223,7 +198,7 @@ class Portfolio():
         # 当holdweight不为None时考虑此权重
         if type(self.holdweight) != type(None):
             bar_hold = [i*self.holdweight for i in bar_hold]
-    # matrix hold
+        # matrix hold
         mat_hold = []
         for period in self.periods:
             # 以period为周期 调整持仓的持仓表
@@ -252,11 +227,11 @@ class Portfolio():
             # 合约市值权重  不是真实的市值 
             list_cap = [hold * self.price for hold in list_hold]
             list_weight = [cap.apply(lambda x: x/x.sum(), axis=1).fillna(0) for cap in list_cap]
-            if self.cheat:
-                # 当日收益(日weight)
-                list_contri = [(weight.shift()*self.returns).fillna(0) for weight in list_weight]
-            else:
-                list_contri = [(weight*self.returns).fillna(0) for weight in list_weight]
+            #if self.cheat:
+            # 当日收益(昨日weight)
+            list_contri = [(weight.shift()*self.returns).fillna(0) for weight in list_weight]
+            #else:
+            #    list_contri = [(weight*self.returns).fillna(0) for weight in list_weight]
             # 或者乘以次日收益
 #            list_contri = [(weight*self.returns.shift(-1)).fillna(0) for weight in list_weight]
             mat_contri.append(list_contri)
@@ -276,20 +251,33 @@ class Portfolio():
         self.mat_returns = mat_returns
     def matrix_turnover(self):
         mat_turnover = []
-        for list_hold in self.mat_hold:
-            # 持仓变化 初始期为0
-            list_delta_hold = [hold - hold.shift().fillna(0) for hold in list_hold]
-            # 成交量
-            list_amount = [np.abs(delta_hold*self.price) for delta_hold in list_delta_hold]
-            list_amount = [amount.sum(axis=1) for amount in list_amount]
-            # 市值  等于持仓个数
-            #list_cap = [(hold*self.price).sum(axis=1) for hold in list_hold]
-            list_cap = [(hold != 0).sum(axis=1) for hold in list_hold]
-            # 换手率  如果清仓则会计算为np.inf 替换为1
-            list_turnover = [list_amount[i]/list_cap[i] for i in range(len(list_hold))]
-            list_turnover = [i.apply(lambda x: x if x!=np.inf else 1) for i in list_turnover]
+        #for list_hold in self.mat_hold:
+        #    # 持仓变化 初始期为0
+        #    list_delta_hold = [hold - hold.shift().fillna(0) for hold in list_hold]
+        #    # 成交量
+        #    list_amount = [np.abs(delta_hold*self.price) for delta_hold in list_delta_hold]
+        #    list_amount = [amount.sum(axis=1) for amount in list_amount]
+        #    # 市值(等于持仓个数)
+        #    #list_cap = [(hold*self.price).sum(axis=1) for hold in list_hold]
+        #    list_cap = [(hold != 0).sum(axis=1) for hold in list_hold]
+        #    # 换手率  如果清仓则会计算为np.inf 替换为1
+        #    list_turnover = [list_amount[i]/list_cap[i] for i in range(len(list_hold))]
+        #    list_turnover = [i.apply(lambda x: x if x!=np.inf else 1) for i in list_turnover]
+        #    # 年化换手率
+#       #     list_turnover = [i.mean()*250 for i in list_turnover]
+        #    mat_turnover.append(list_turnover)
+        # 假设当期没有换仓的权重与当期权重的差值即为换手率
+        # 换仓周期
+        for i in range(len(self.mat_weight)):
+            list_weight = self.mat_weight[i]
+            list_contri = self.mat_contri[i]
+            list_NoAdjustWeight = [list_weight[j].shift().fillna(0) + list_contri[j] for j in range(len(list_weight))]
+            list_NoAdjustWeight = [NoAdjustWeight.div(NoAdjustWeight.sum(axis=1), axis='rows') \
+                                   for NoAdjustWeight in list_NoAdjustWeight]
+            list_NoAdjustWeight = [NoAdjustWeight.fillna(0) for NoAdjustWeight in list_NoAdjustWeight]
+            list_turnover = [np.abs((list_weight[j]-list_NoAdjustWeight[j])).sum(axis=1) for j in range(len(list_weight))]
             # 年化换手率
-#            list_turnover = [i.mean()*250 for i in list_turnover]
+            #list_turnover = [i.mean()*250 for i in list_turnover]
             mat_turnover.append(list_turnover)
         self.mat_turnover = mat_turnover
     def get_result(self):
@@ -323,15 +311,70 @@ class Portfolio():
             M_std = M_returns.std()*np.sqrt(250)
             M_return_annual = np.exp(M_returns.sum()/duryears) - 1
             M_sharpe = (M_return_annual-0.03)/M_std
-            # 多空组合换手率
-            turnover = 0.5*self.mat_turnover[i][-2].mean()*250 + 0.5*self.mat_turnover[i][0].mean()*250
+            # 多头换手率
+            turnover = self.mat_turnover[i][-2].mean()*250
             # 考虑换手率造成的交易成本后的多头收益率
             real_return = (L_return_annual+1)*(1-self.comm/10000)**(turnover) - 1
-            record = {'IC':IC, 'ICIR':ICIR, 'L&S return': LS_return_annual, 
-                      'L return':L_return_annual, 'market return':M_return_annual, 'real return':real_return,
+            real_sharpe = (real_return-0.03)/L_std
+            record = {'group IC':IC, 'group ICIR':ICIR, 'L&S return': LS_return_annual, 
+                      'L return':L_return_annual, 'market return':M_return_annual, 
                       'L&S sharpe':LS_sharpe, 'L sharpe':L_sharpe, 'market sharpe':M_sharpe, 
-                                'turnover':turnover} 
+                        'real return':real_return, 'real sharpe':real_sharpe, 'turnover':turnover}
             self.result.loc[self.periods[i]] = record
+
+
+
+# 单因子评价  
+# 直接market_factor标准的market以及因子column名
+class EvalFactor():
+    # factor_name为IC_series列名
+    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
+        # 如果需要排除
+        #if 'alpha-keep' in market.columns:
+        #    market = market[market['alpha-keep']]
+        # 因子
+        #factor = market[[factor_name]].rename(columns={factor_name:'factor'})
+        # 输出结果 列：因子指标  行：时间周期
+        result = pd.DataFrame(columns = ['IC', 'ICIR'])
+        result.index.name='period'
+        # 多周期IC序列
+        IC_dict = {}
+        for period in periods:
+            # 预测收益率  预测n期收益率
+            returns = (price.shift(-period) - price)/price
+            #returns = returns.shift(-period)
+            returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
+            # 合并df
+            df_corr = pd.concat([factor, returns], axis=1).dropna()
+            # 计算IC序列
+            df_corr = df_corr.groupby('date').corr(method='spearman')
+            IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
+            IC_dict[period] = IC_series
+            # 因子指标
+            IC = IC_series.mean()
+            ICIR = IC/IC_series.std()
+            record = {'IC':IC, 'ICIR':ICIR}
+            result.loc[period] = record
+        self.result = result
+        # 多周期平均IC序列
+        IC_series = IC_dict[periods[0]]
+        for period in periods[1:]:
+            IC_series += IC_dict[period]
+        IC_series =  IC_series/len(periods)
+        self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

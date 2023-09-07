@@ -26,15 +26,19 @@ class Order():
         return self.priority < other.priority
 # 交易员类
 class Trader():
-    # type : amount_trader
+    # type : amount_trader 按照目标金额成交
     # target_amount  dict，key:code, value: amount, 标的目标市值，第二日开盘由交易员挂单
     target_amount = {}
+    # type: batch_trader 按照目标标的等权持有
+    code_list = None
     # type: buyhold_trader
     code = None
     vol = None
     order_id = None
-    def __init__(self, type):
+    # 默认开盘价执行
+    def __init__(self, type, price='open'):
         self.type = type
+        self.price = price
 
 
 class World():
@@ -42,7 +46,7 @@ class World():
 # 单根k线最大成交量限制，  撮合价格，  最大接收订单数（订单queue长度），
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market, init_cash = 1000000, comm = 7, 
-                 max_vol_perbar=0.1, price='open', tradetype=None, 
+                 max_vol_perbar=999, tradetype=None, 
                  init_stat=None,
                  ):
         self.temp_log = ''
@@ -52,7 +56,6 @@ class World():
         self.init_cash = init_cash
         self.comm = comm/10000
         self.max_vol_perbar = max_vol_perbar
-        self.price = price
         self.tradetype = tradetype
 
     # barline 时间线（run函数遍历barline）
@@ -172,39 +175,40 @@ class World():
         self.series_net.loc[self.cur_bar] = self.cur_net
 
     # 提交订单函数
-    def buy(self, code, vol = None):
+    def buy(self, code, vol = None, price_type = 'open'):
         # 默认满仓买入
         if vol == None:
             vol = self.cur_net/self.cur_market['close'].loc[code]
-            order = Order('Buy', code, vol, self.price, self.unique)
+            order = Order('Buy', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
         else:
             # amount为正表示做多 为负表示做空
-            order = Order('Buy', code, vol, self.price, self.unique)
+            order = Order('Buy', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
-    def sell(self, code = None, vol = None):
-        # 无参数时默认清仓
+    def sell(self, code = None, vol = None, price_type = 'open'):
+        # 无参数时默认全部清仓
         if code == None:
             for code,vol in self.cur_hold_vol.items():
-                order = Order('Sell', code, vol, self.price, self.unique)
+                order = Order('Sell', code, vol, price_type, self.unique)
                 self.unique += 1
                 self.sub_order(order)
+        # 无委托量时默认清仓该code
         elif vol == None:
             self.cur_hold_vol
-            order = Order('Sell', code, self.cur_hold_vol[code], self.price, self.unique)
+            order = Order('Sell', code, self.cur_hold_vol[code], price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
         else:
-            order = Order('Sell', code, vol, self.price, self.unique)
+            order = Order('Sell', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
 
     # 交易员订单 由trader()在策略的次一根bar内执行
     # 买入卖出标的至目标市值 target_amount dict key:code, value:amount
-    def trade_amount(self, target_amount):
-        trader = Trader('amount_trader')
+    def trade_amount(self, target_amount, price='open'):
+        trader = Trader('amount_trader', price)
         trader.target_amount = target_amount
         self.queue_trader.put(trader)
     def runtrade_amount(self, trader):
@@ -214,38 +218,69 @@ class World():
         buy_vol = {}
         sell_vol = {}
         for code in target_amount.keys():
+            #self.log(code)
             # 保证order.code在当前可交易code中
             inmarket = True
             try:
-                # 停牌
-                if self.cur_market['vol'].loc[code]==0:
-                    self.log_warning('target amount sus----code: %s'%(code))
-                    inmarket = False
+                self.cur_market['vol'].loc[code] == 0
+            #    # 停牌
+            #    if self.cur_market['vol'].loc[code]==0:
+            #        #self.log_warning('target amount sus----code: %s'%(code))
+            #        inmarket = False
             except:
                 # 没有找到code不发生交易
-                self.log_error('target amount 404----code: %s'%(code))
+                #self.log_error('target amount 404----code: %s'%(code))
                 inmarket = False
             if inmarket:
-                # 如果无持仓 则买入
+            # 如果无持仓 则买入
                 if code not in self.cur_hold_vol.index:
-                    buy_vol[code] = target_amount[code]/self.cur_market['open'].loc[code]
+                    #self.log('open '+ code + ' ' + str(target_amount[code]))
+                    buy_vol[code] = target_amount[code]/self.cur_market[trader.price].loc[code]
                 else:
                     deltaamount = target_amount[code] - self.cur_hold_amount[code]
                     # 需要买入
                     if deltaamount > 0:
-                        buy_vol[code] = deltaamount/self.cur_market['open'].loc[code]
+                        #self.log('buy '+ code + ' ' + str(deltaamount))
+                        buy_vol[code] = deltaamount/self.cur_market[trader.price].loc[code]
                     else:
                         # 全部卖出
                         if target_amount[code] == 0:
+                            #self.log('close '+ code)
                             sell_vol[code] = self.cur_hold_vol[code]
                         else:
-                            sell_vol[code] = -deltaamount/self.cur_market['open'].loc[code]
+                            #self.log('sell '+ code + ' ' + str(deltaamount))
+                            sell_vol[code] = -deltaamount/self.cur_market[trader.price].loc[code]
         for code in buy_vol.keys():
-            self.buy(code, buy_vol[code])
+            self.buy(code, buy_vol[code], trader.price)
         for code in sell_vol.keys():
-            self.sell(code, sell_vol[code])
-        # 是否继续加入队列 
-        return False
+            self.sell(code, sell_vol[code], trader.price)
+    # 等权持有目标标的
+    def trade_batch(self, code_list, price='open'):
+        trader = Trader('batch_trader', price)
+        trader.code_list = code_list
+        self.queue_trader.put(trader)
+    def runtrade_batch(self, trader):
+        # 按照执行价格计算的总资产
+        net = (self.cur_hold_vol*self.cur_market[trader.price]).sum() + self.cur_cash
+        # 平均每标的的持有金额
+        amount = net/len(trader.code_list)
+        # 提交订单
+        # 不在code_list中的直接清仓
+        for code in self.cur_hold_vol.index:
+            if code not in trader.code_list:
+                self.sell(code, price_type=trader.price)
+        # 在code_list中的补齐至amount
+        for code in trader.code_list:
+            # 如果不在市场中，则卖出999
+            try:
+                delta = (amount - self.df_hold.loc[self.cur_bar][code]*self.cur_market.loc[code][trader.price])\
+                        /self.cur_market.loc[code][trader.price]
+            except:
+                delta = -999 
+            if delta > 0:
+                self.buy(code, delta, trader.price)
+            else:
+                self.sell(code, -delta, trader.price)
     # 买入持有固定时间
     def trade_buyhold(self, code, vol, holdtime):
         trader = Trader('buyhold_trader')
@@ -281,8 +316,9 @@ class World():
         while not self.queue_trader.empty():
             trader = self.queue_trader.get()
             if trader.type == 'amount_trader':
-                if self.runtrade_amount(trader):
-                    savetrader.append(trader)
+                self.runtrade_amount(trader)
+            elif trader.type == 'batch_trader':
+                self.runtrade_batch(trader)
             elif trader.type == 'buyhold_trader':
                 if self.runtrade_buyhold(trader):
                     savetrader.append(trader)
@@ -454,6 +490,10 @@ class World():
             self.update_cash(cur_cash_)
             self.update_hold(order.code, final_vol)
 
+    # XD 股息、债息以及送转股
+    def dividend(self):
+        pass
+
     # 策略
     def strategy(self):
         pass
@@ -506,8 +546,8 @@ class World():
         # regular
             # 当前bar 日期
             self.bar_n = bar_
-            self.log('new bar')
             self.cur_bar = self.barline[bar_]
+            self.log('new bar')
             self.cur_market = self.market.loc[self.cur_bar]
             # 更新账户状态 (默认与之前相同，防止没有订单情况)
             self.df_hold.loc[self.cur_bar] = self.df_hold.iloc[-1]
@@ -522,6 +562,8 @@ class World():
                 # 接收订单
                 order = self.queue_order.get()
                 self.excute(order)
+        # 处理分红、股息、送股
+            #self.dividend()
         # 更新过hold之后再次更新净值
             self.update_net()
             
@@ -543,32 +585,42 @@ class World():
     # 开启作弊 则用当前bar执行交易
     def cheat_run(self):
         self.init()
-        # 标的交易可以无限细分
-        self.tradetype = None
 
     # 遍历每个bar
         for bar_ in range(len(self.barline)):
         # regular
             self.bar_n = bar_
-            self.log('new bar')
             self.cur_bar = self.barline[bar_]
+            self.log('new bar')
             self.cur_market = self.market.loc[self.cur_bar]
             # 更新账户状态 (默认与之前相同，防止没有订单情况)
             self.df_hold.loc[self.cur_bar] = self.df_hold.iloc[-1]
             self.update_cash(self.cur_cash)
             self.update_net()
-        # 策略 
+        # 策略
             self.log('run strategy')
             self.strategy()
         # 直接处理订单
             self.log('excute thisbar order')
+            # 交易员下单
+            self.runtrader()
+        # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
             while not self.queue_order.empty():
+                # 接收订单
                 order = self.queue_order.get()
                 self.excute(order)
             self.update_net()
             self.log('end bar')
 
-
+        # log写入文件
+        f = open('barbybar_log.txt', 'w')
+        f.write('Regular log: \n\n\n')
+        f.write(self.temp_log)
+        f.write('\n\n\nError log: \n\n\n')
+        f.write(self.error_log)
+        f.write('\n\n\nWarning log: \n\n\n')
+        f.write(self.warning_log)
+        f.close()
 
 
 
