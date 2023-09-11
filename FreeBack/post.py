@@ -180,8 +180,8 @@ class Post():
         return_total = self.net[-1]/self.net[0]
         self.return_annual = return_total**(1/years)-1
         # 年化波动率 shrpe
-        self.std_annual = np.std(np.log(self.returns+1))*np.sqrt(250)
-#        self.std_annual = np.std(np.log(self.returns))*np.sqrt(250) 
+        #self.std_annual = np.std(np.log(self.returns+1))*np.sqrt(250)
+        self.std_annual = np.std(self.returns)*np.sqrt(250)
         self.sharpe = (self.return_annual - self.rf)/self.std_annual
         # 回撤
         a = np.maximum.accumulate(self.net)

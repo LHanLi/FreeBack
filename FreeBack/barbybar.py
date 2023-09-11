@@ -30,7 +30,7 @@ class Trader():
     # target_amount  dict，key:code, value: amount, 标的目标市值，第二日开盘由交易员挂单
     target_amount = {}
     # type: batch_trader 按照目标标的等权持有
-    code_list = None
+    weight = None
     # type: buyhold_trader
     code = None
     vol = None
@@ -43,7 +43,8 @@ class Trader():
 
 class World():
 # 初始化  market(DataFrame)， 初始资金， 交易成本（万），
-# 单根k线最大成交量限制，  撮合价格，  最大接收订单数（订单queue长度），
+# 单根k线最大成交量限制， 
+# 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market, init_cash = 1000000, comm = 7, 
                  max_vol_perbar=999, tradetype=None, 
@@ -254,23 +255,25 @@ class World():
             self.buy(code, buy_vol[code], trader.price)
         for code in sell_vol.keys():
             self.sell(code, sell_vol[code], trader.price)
-    # 等权持有目标标的
-    def trade_batch(self, code_list, price='open'):
+    # 等权/weight加权持有目标标的
+    def trade_batch(self, weight, price='open'):
         trader = Trader('batch_trader', price)
-        trader.code_list = code_list
+        weight = weight/weight.sum()
+        trader.weight = weight
         self.queue_trader.put(trader)
     def runtrade_batch(self, trader):
         # 按照执行价格计算的总资产
         net = (self.cur_hold_vol*self.cur_market[trader.price]).sum() + self.cur_cash
-        # 平均每标的的持有金额
-        amount = net/len(trader.code_list)
+        ## 平均每标的的持有金额
+        #amount = net/len(trader.code_list)
         # 提交订单
         # 不在code_list中的直接清仓
         for code in self.cur_hold_vol.index:
-            if code not in trader.code_list:
+            if code not in trader.weight.index:
                 self.sell(code, price_type=trader.price)
         # 在code_list中的补齐至amount
-        for code in trader.code_list:
+        for code, w in trader.weight.items():
+            amount = w*net
             # 如果不在市场中，则卖出999
             try:
                 delta = (amount - self.df_hold.loc[self.cur_bar][code]*self.cur_market.loc[code][trader.price])\
@@ -585,7 +588,6 @@ class World():
     # 开启作弊 则用当前bar执行交易
     def cheat_run(self):
         self.init()
-
     # 遍历每个bar
         for bar_ in range(len(self.barline)):
         # regular
