@@ -21,7 +21,7 @@ def get_market(market):
     if 'alpha-keep' not in market.columns:
         #return market, market, market[market['vol']!=0]
         #return market[market['vol']!=0], market
-        return market, market
+        return market.copy(), market.copy()
     else:
     ## market_price 为了防止未来函数保留alpha-keep为False的第一个记录
     #    select = market[['alpha-keep']]
@@ -52,7 +52,7 @@ def get_market(market):
     #    #market_factor = market[market['alpha-keep']]
         market_factor = market[market['alpha-keep']]
         #return market_factor, market_price, market_price[market_price['vol']!=0]
-        return market_factor, market
+        return market_factor.copy(), market.copy()
 
 
 
@@ -66,12 +66,16 @@ class Portfolio():
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
     #def __init__(self, factor, price, price_return, holdweight=None, cheat = True, comm=0.5):
-    def __init__(self, factor, price, holdweight=None, cheat = False, comm=0.5):
+    def __init__(self, factor, price, holdweight=None, cheat = False, comm=0.5, norm=True):
         self.comm = comm
         self.cheat = cheat
+        self.norm = norm
 #        # 先按照截面排序归一化
-#        self.factor = Rank(factor)
-        self.factor = factor
+        if norm:
+            self.factor = Rank(pd.DataFrame(factor.rename('factor')))
+        else:
+            self.factor = pd.DataFrame(factor.rename('factor'))
+        self.variable = factor
         # 一个确定持有张数（不去除停牌），一个确定收益率(去除停牌)
         self.price = price
         if type(holdweight) != type(None):
@@ -102,13 +106,26 @@ class Portfolio():
         # 最后一个区间为（0，1）表示等权配置收益指数
         # 如果是list则直接为a_b
         if type(divide) == type(list()):
+            # 代理变量绝对值
+            if self.norm == True:
+                self.threshold = [self.variable.groupby('date').quantile(divide[0][0])] +\
+                  [self.variable.groupby('date').quantile(i[1]) for i in divide]
+            else:
+                self.threshold = [ i for i in divide]
             self.a_b = divide
         # 选取factor区间[(0,0.2),(0.2,0.4)...]
         else:
+            if self.norm==True:
+                self.threshold = [self.variable.groupby('date').quantile(i) for i in divide]
+            else:
+                self.threshold = [i for i in divide]
             self.a_b = [(divide[i],divide[i+1]) for i in range(len(divide)-1)]
         # 如果justdivide = True不计算(0，1)
         if not justdivide:
-            self.a_b = self.a_b + [(0,1)]
+            if self.norm == True:
+                self.a_b = self.a_b + [(0,1)]
+            else:
+                self.a_b = self.a_b + [(self.factor.min().values[0], self.factor.max().values[0])]
     # 生成持仓表 -> 获得 df_contri(index date  columns code) -> 获得净值每日对数收益率 -> 获得换手率
     # 全部为矩阵操作
         self.matrix_hold()
@@ -118,7 +135,6 @@ class Portfolio():
         self.matrix_turnover()
         if not justdivide:
             self.get_result()
-
 # plot
 # 因子组合收益（单边做多，考虑交易成本（默认单边万7））
     def HoldReturn(self, i_period, dateleft=None, dateright=None, cost=0):
@@ -152,7 +168,7 @@ class Portfolio():
         plt, fig, ax = matplot()
         benchmark = self.mat_lr[i_period][-1].cumsum()
         # 画图曲线颜色和透明度区分
-        # 等全指数不画
+        # 等权指数不画
         number = len(self.a_b)-1
         number0 = int(number/2)
         number1 = number - number0
@@ -177,7 +193,42 @@ class Portfolio():
         plt.gcf().autofmt_xdate()
         plt.savefig("LogCompare.png")
         plt.show()
-
+# 各组分组因子值阈值和数量
+    def FactorThreshold(self):
+        plt, fig, ax = matplot()
+        # 颜色与LogCompare中相同，最大值和最小值为橙色C1
+        # 等权指数不画
+        number = len(self.a_b)-1
+        number0 = int(number/2)
+        number1 = number - number0
+        #前一半为绿色，后一半为红色 （做多因子数值高组，做空因子数值低组）
+        color_list = ['C2']*number0 + ['C3']*number1
+        # 颜色越靠近中心越浅
+        alpha0 = (np.arange(number0)+1)[::-1]/number0
+        alpha1 = (np.arange(number1)+1)/number1
+        alpha_list = np.append(alpha0, alpha1)
+        ax2 = ax.twinx()
+        #ax.plot(self.threshold[0], label='low bound',
+        #        c='C1')
+        for i in range(number):
+            if self.norm==True:
+                ax.plot(self.threshold[i+1].rolling(5).mean(), label=str(self.a_b[i][1]),
+                    c=color_list[i], alpha=alpha_list[i])
+            else:
+                line = pd.Series(index=self.returns.index).copy()
+                line.loc[:] = self.threshold[i+1]
+                ax.plot(line, label=str(self.a_b[i][1]),
+                    c=color_list[i], alpha=alpha_list[i])
+            ax2.plot(self.group_number[i], ls='--', 
+                    c=color_list[i], alpha=alpha_list[i])
+        ax.legend()
+        ax.set_ylabel('Factor thershold')
+        # 避免显示异常值
+        ax2.set_ylabel('Factor group stock number')
+        ax.set_xlabel('Date')
+        plt.gcf().autofmt_xdate()
+        plt.savefig("FactorThreshold.png")
+        plt.show()
 # mat[period][factor range]  list[factor range]
 # 获得每个持仓周期 每个因子区间的 hold （虚拟持仓 只保证比例关系正确, 和为1)  a_b factor range from a to b 区间内市值等权重
     def matrix_hold(self):
@@ -185,6 +236,7 @@ class Portfolio():
         factor = self.factor.reset_index()
         # 选取因子值 满足a_b list中全部条件的 放置于list_hold (前开后闭，与Rank函数返回的(0，1]对应)
         bar_hold = [factor[(i[0]<factor['factor']) & (factor['factor']<=i[1])] for i in self.a_b]
+        self.group_number = [i.groupby('date').count() for i in bar_hold]
         # 在date没有出现的code补np.nan
         # 每个bar持仓表，如果不开启作弊则统一向后移动一个bar
         if self.cheat == True:
@@ -333,6 +385,7 @@ class EvalFactor():
         #if 'alpha-keep' in market.columns:
         #    market = market[market['alpha-keep']]
         # 因子
+        factor = pd.DataFrame(factor.rename('factor'))
         #factor = market[[factor_name]].rename(columns={factor_name:'factor'})
         # 输出结果 列：因子指标  行：时间周期
         result = pd.DataFrame(columns = ['IC', 'ICIR'])
