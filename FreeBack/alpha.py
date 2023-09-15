@@ -341,7 +341,7 @@ class Portfolio():
                 returns = pd.DataFrame(self.mat_returns[i][j])
                 returns['factor']=j
                 df_corr = pd.concat([df_corr, returns])
-            df_corr = df_corr.groupby('date').corr()
+            df_corr = df_corr.groupby('date').corr(method='spearman')
             IC_series = df_corr.loc[(slice(None), 'factor'), 0]
             # 因子指标
             IC = IC_series.mean()
@@ -382,11 +382,8 @@ class EvalFactor():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
         # 如果需要排除
-        #if 'alpha-keep' in market.columns:
-        #    market = market[market['alpha-keep']]
         # 因子
         factor = pd.DataFrame(factor.rename('factor'))
-        #factor = market[[factor_name]].rename(columns={factor_name:'factor'})
         # 输出结果 列：因子指标  行：时间周期
         result = pd.DataFrame(columns = ['IC', 'ICIR'])
         result.index.name='period'

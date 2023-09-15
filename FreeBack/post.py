@@ -261,6 +261,19 @@ class Post():
         else:
             plt.savefig(filename)
         plt.show()
+# 滚动收益
+    def rolling_return(self):
+        plt, fig, ax = matplot()
+        ax.plot((self.net/self.net.shift(20)-1)*100, c='C0', label='month return')
+        #ax.plot((post0.net/post0.net.shift(60)-1)*4, c='C1', label='quarter return')
+        #ax.plot((post0.net/post0.net.shift(120)-1)*2, c='C3', label='half year return')
+        ax2 = ax.twinx()
+        ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='year return')
+        ax.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+        ax.set_ylabel('滚动时点向前回溯收益 (%)')
+        plt.gcf().autofmt_xdate()
+        plt.savefig('rolling_return.png')
 # 月度收益
     def pnl_monthly(self):
         plt,fig,ax = plot_thermal(self.lr)
@@ -314,9 +327,6 @@ class Post():
     def trade_monthly(self):
         plt,fig,ax = month_thermal(self.month_winrate, 0.5)
         plt.savefig('trade_monthly.png') 
-#    def trade_odds_monthly(self):
-#        plt,fig,ax = month_thermal(self.month_odds, 1)
-#        plt.savefig('odds_monthly.png') 
 # 仓位分析
     def position(self):
         plt, fig, ax = matplot()
