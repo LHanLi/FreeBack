@@ -47,7 +47,7 @@ class World():
 # 单根k线最大成交量限制， 
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market, init_cash = 1000000, comm = 7, 
+    def __init__(self, market, init_cash = 1000000, 
                  max_vol_perbar=999, tradetype=None, 
                  init_stat=None,
                  ):
@@ -55,8 +55,9 @@ class World():
         self.error_log = ''
         self.warning_log = ''
         self.market = market
+        self.comm_dic = {'option':0.0002, 'stock':0, 'other':0}
+        self.init_market()
         self.init_cash = init_cash
-        self.comm = comm/10000
         self.max_vol_perbar = max_vol_perbar
         self.tradetype = tradetype
 
@@ -119,6 +120,12 @@ class World():
     # series_net, cur_net 当前净值（持仓（收盘价估算）+现金）
         self.series_net = pd.Series(dtype = object)
         self.cur_net = init_cash
+
+    #market初始化，加入comm
+    def init_market(self):
+        tmp_type = self.market['type'].copy(deep=True)
+        self.market['commm'] = tmp_type.map(lambda x: self.comm_dic[x])
+    
     
     # log函数
     def log(self, notice):
@@ -469,7 +476,7 @@ class World():
                 cur_cash_ = self.cur_cash - vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                comm_cost = vol*price*self.comm
+                comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
                 cur_cash_ = cur_cash_ - comm_cost
                 # 订单执行记录
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
@@ -482,7 +489,7 @@ class World():
                 cur_cash_ = self.cur_cash + vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                comm_cost = vol*price*self.comm
+                comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
                 cur_cash_ = cur_cash_ - comm_cost
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
