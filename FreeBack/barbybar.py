@@ -48,7 +48,7 @@ class World():
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market, init_cash = 1000000, 
-                 max_vol_perbar=999, tradetype=None, 
+                 max_vol_perbar=999, is_round = True, 
                  init_stat=None,
                  ):
         self.temp_log = ''
@@ -59,7 +59,7 @@ class World():
         self.init_market()
         self.init_cash = init_cash
         self.max_vol_perbar = max_vol_perbar
-        self.tradetype = tradetype
+        self.is_round = is_round
 
     # barline 时间线（run函数遍历barline）
         self.barline = market.index.get_level_values(0).unique()
@@ -340,19 +340,27 @@ class World():
 
     # 执行订单部分
 #    @staticmethod
-    def rounding(self, vol):
+    def rounding(self, vol, code):
+        #判断是否要round
+        if not self.is_round:
+            return vol
+        # 获取order.code 的类型
+        code_type = self.cur_market.loc[code]['type']
         # 可转债最小交易单位为10张
-        if self.tradetype == 'convertible':
+        if code_type == 'convertible':
             return vol - vol%10
         # 可转债拆单，最小成交为30张
-        elif self.tradetype == 'convertible_split':
+        elif code_type == 'convertible_split':
             if vol <= 30:
                 return 0
             return vol - vol%10
-        elif self.tradetype == 'stock':
+        elif code_type == 'stock':
             return vol - vol%100
-        else:
-            return vol
+        elif code_type == 'option':
+            unit = self.cur_market.loc[code]['contract_unit']
+            return vol - vol%unit
+        elif code_type == 'other':
+            return vol//1
         
     # 接收订单对象执行
     def excute(self, order):
@@ -422,18 +430,18 @@ class World():
                     # 现金限制最大成交量
                     if max_vol0 <= max_vol1:
                         if order.vol > max_vol0:
-                            vol = self.rounding(max_vol0)
+                            vol = self.rounding(max_vol0, order.code)
                             stat = 'not enough cash'
                         else:
-                            vol = self.rounding(order.vol)
+                            vol = self.rounding(order.vol, order.code)
                             stat = 'normal'
                     # 当前bar最大成交量限制
                     else:
                         if order.vol > max_vol1:
-                            vol = self.rounding(max_vol1)
+                            vol = self.rounding(max_vol1, order.code)
                             stat = 'not enough vol'
                         else:
-                            vol = self.rounding(order.vol)
+                            vol = self.rounding(order.vol, order.code)
                             stat = 'normal'
                 else:
                     vol = 0
@@ -453,18 +461,18 @@ class World():
                         #    vol = max_vol2
                         #    stat = 'not enough hold'
                         #else:
-                        #    vol = self.rounding(order.vol)
+                        #    vol = self.rounding(order.vol, order.code)
                         #    stat = 'normal'
-                        vol = self.rounding(order.vol)
+                        vol = self.rounding(order.vol, order.code)
                         stat = 'normal'
 
                     # 当前bar最大成交量限制
                     else:
                         if order.vol > max_vol1:
-                            vol = self.rounding(max_vol1)
+                            vol = self.rounding(max_vol1, order.code)
                             stat = 'not enough vol'
                         else:
-                            vol = self.rounding(order.vol)
+                            vol = self.rounding(order.vol, order.code)
                             stat = 'normal'
                 else:
                     vol = 0
