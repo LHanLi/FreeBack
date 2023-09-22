@@ -218,10 +218,13 @@ class World():
                 self.sub_order(order)
         # 无委托量时默认清仓该code
         elif vol == None:
-            self.cur_hold_vol
-            order = Order('Sell', code, self.cur_hold_vol[code], price_type, self.unique)
-            self.unique += 1
-            self.sub_order(order)
+            vol = self.cur_hold_vol[code]
+            if vol>0:
+                order = Order('Sell', code, self.cur_hold_vol[code], price_type, self.unique)
+                self.unique += 1
+                self.sub_order(order)
+            else:
+                return
         else:
             order = Order('Sell', code, vol, price_type, self.unique)
             self.unique += 1
