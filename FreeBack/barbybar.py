@@ -71,7 +71,7 @@ class World():
         self.cur_market = self.market.loc[self.cur_bar]
 
     # queue_order 订单队列（每个bar开始前检查策略在上一个bar发出的订单，并且执行）
-        self.queue_order = queue.PriorityQueue()
+        self.queue_order = queue.Queue()
     # 交易员列表，策略可以像列表中添加交易员，一个交易员对应一个交易员函数，如果交易执行完毕则
     # 交易员离开队列
         self.queue_trader = queue.Queue()
@@ -259,10 +259,10 @@ class World():
                         else:
                             #self.log('sell '+ code + ' ' + str(deltaamount))
                             sell_vol[code] = -deltaamount/self.cur_market[trader.price].loc[code]
-        for code in buy_vol.keys():
-            self.buy(code, buy_vol[code], trader.price)
         for code in sell_vol.keys():
             self.sell(code, sell_vol[code], trader.price)
+        for code in buy_vol.keys():
+            self.buy(code, buy_vol[code], trader.price)
     # 等权/weight加权持有目标标的
     def trade_batch(self, weight, price='open'):
         trader = Trader('batch_trader', price)
@@ -288,10 +288,10 @@ class World():
                         /self.cur_market.loc[code][trader.price]
             except:
                 delta = -999 
-            if delta > 0:
-                self.buy(code, delta, trader.price)
-            else:
+            if delta <= 0:
                 self.sell(code, -delta, trader.price)
+            else:
+                self.buy(code, delta, trader.price)
     # 买入持有固定时间
     def trade_buyhold(self, code, vol, holdtime):
         trader = Trader('buyhold_trader')
