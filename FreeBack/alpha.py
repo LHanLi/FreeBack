@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from FreeBack.FreeBack.post import *
+from FreeBack.post import matplot
 import datetime, copy
 
 # 常用函数
