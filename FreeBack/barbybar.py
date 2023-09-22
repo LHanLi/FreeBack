@@ -61,6 +61,7 @@ class World():
         self.max_vol_perbar = max_vol_perbar
         self.is_round = is_round
 
+
     # barline 时间线（run函数遍历barline）
         self.barline = market.index.get_level_values(0).unique()
     # 当前bar 日期
@@ -124,7 +125,7 @@ class World():
     #market初始化，加入comm
     def init_market(self):
         tmp_type = self.market['type'].copy(deep=True)
-        self.market['commm'] = tmp_type.map(lambda x: self.comm_dic[x])
+        self.market['comm'] = tmp_type.map(lambda x: self.comm_dic[x])
     
     
     # log函数
@@ -496,7 +497,10 @@ class World():
                 cur_cash_ = self.cur_cash - vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
+                if self.cur_market.loc[order.code]['type'] == 'option':
+                    comm_cost = vol*self.cur_market.loc[order.code]['comm']
+                else:
+                    comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
                 cur_cash_ = cur_cash_ - comm_cost
                 # 订单执行记录
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
@@ -509,7 +513,10 @@ class World():
                 cur_cash_ = self.cur_cash + vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
+                if self.cur_market.loc[order.code]['type'] == 'option':
+                    comm_cost = vol*self.cur_market.loc[order.code]['comm']
+                else:
+                    comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
                 cur_cash_ = cur_cash_ - comm_cost
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
