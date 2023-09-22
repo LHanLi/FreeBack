@@ -184,13 +184,25 @@ class World():
         self.series_net.loc[self.cur_bar] = self.cur_net
 
     # 提交订单函数
-    def buy(self, code, vol = None, price_type = 'open'):
-        # 默认满仓买入
-        if vol == None:
-            vol = self.cur_net/self.cur_market['close'].loc[code]
-            order = Order('Buy', code, vol, price_type, self.unique)
-            self.unique += 1
-            self.sub_order(order)
+    def buy(self, code = None, vol = None, price_type = 'open'):
+        # 默认做空平仓
+        # 无参数时默认全部清仓
+        if code == None:
+            for code,vol in self.cur_hold_vol.items():
+                if vol < 0:
+                    order = Order('Buy', code, -vol, price_type, self.unique)
+                    self.unique += 1
+                    self.sub_order(order)
+                else:
+                    return
+        elif vol == None:
+            vol = self.cur_hold_vol[code]
+            if vol < 0:
+                order = Order('Buy', code, -vol, price_type, self.unique)
+                self.unique += 1
+                self.sub_order(order)
+            else:
+                return
         else:
             # amount为正表示做多 为负表示做空
             order = Order('Buy', code, vol, price_type, self.unique)
