@@ -280,10 +280,10 @@ class Portfolio():
             list_cap = [hold * self.price for hold in list_hold]
             list_weight = [cap.apply(lambda x: x/x.sum(), axis=1).fillna(0) for cap in list_cap]
             #if self.cheat:
-            # 当日收益(昨日weight)
-            list_contri = [(weight.shift()*self.returns).fillna(0) for weight in list_weight]
-            #else:
             #    list_contri = [(weight*self.returns).fillna(0) for weight in list_weight]
+            ## 当日收益(昨日weight)
+            #else:
+            list_contri = [(weight.shift()*self.returns).fillna(0) for weight in list_weight]
             # 或者乘以次日收益
 #            list_contri = [(weight*self.returns.shift(-1)).fillna(0) for weight in list_weight]
             mat_contri.append(list_contri)
