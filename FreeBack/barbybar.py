@@ -47,10 +47,8 @@ class World():
 # 单根k线最大成交量限制， 
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {}, init_cash = 1000000, 
-                 max_vol_perbar=999, is_round = True, 
-                 init_stat=None, 
-                 ):
+    def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {'other':1}, init_cash = 1000000, 
+                 max_vol_perbar=999, is_round = True, init_stat=None):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
@@ -375,8 +373,8 @@ class World():
             try:
                 code_unit = self.unit_dic[code]
             except:
-                code_unit = 1
-                print('注意！{}的合约乘数未知，默认是1'.format(code))
+                code_unit = self.unit_dic['other']
+                print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
             unit = code_unit
             return vol - vol%unit
         elif code_type == 'int_vol':
