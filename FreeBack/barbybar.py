@@ -47,7 +47,7 @@ class World():
 # 单根k线最大成交量限制， 
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market,  type_dic = {}, init_cash = 1000000, 
+    def __init__(self, market,  type_dic = {}, unit_dic = {}, init_cash = 1000000, 
                  max_vol_perbar=999, is_round = True, 
                  init_stat=None, 
                  ):
@@ -57,6 +57,7 @@ class World():
         self.market = market
         self.comm_dic = {'option':0.0002, 'stock':0, 'other':0}
         self.type_dic = type_dic
+        self.unit_dic = unit_dic
         self.init_cash = init_cash
         self.max_vol_perbar = max_vol_perbar
         self.is_round = is_round
@@ -371,7 +372,12 @@ class World():
         elif code_type == 'stock':
             return vol - vol%100
         elif code_type == 'option':
-            unit = self.cur_market.loc[code]['contract_unit']
+            try:
+                code_unit = self.unit_dic[code]
+            except:
+                code_unit = 1
+                print('注意！{}的合约乘数未知，默认是1'.format(code))
+            unit = code_unit
             return vol - vol%unit
         elif code_type == 'other':
             return vol//1
