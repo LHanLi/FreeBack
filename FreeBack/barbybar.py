@@ -47,16 +47,16 @@ class World():
 # 单根k线最大成交量限制， 
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market, init_cash = 1000000, 
+    def __init__(self, market,  type_dic = {}, init_cash = 1000000, 
                  max_vol_perbar=999, is_round = True, 
-                 init_stat=None,
+                 init_stat=None, 
                  ):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
         self.market = market
         self.comm_dic = {'option':0.0002, 'stock':0, 'other':0}
-        self.init_market()
+        self.type_dic = type_dic
         self.init_cash = init_cash
         self.max_vol_perbar = max_vol_perbar
         self.is_round = is_round
@@ -121,11 +121,6 @@ class World():
     # series_net, cur_net 当前净值（持仓（收盘价估算）+现金）
         self.series_net = pd.Series(dtype = object)
         self.cur_net = init_cash
-
-    #market初始化，加入comm
-    def init_market(self):
-        tmp_type = self.market['type'].copy(deep=True)
-        self.market['comm'] = tmp_type.map(lambda x: self.comm_dic[x])
     
     
     # log函数
@@ -361,7 +356,10 @@ class World():
         if not self.is_round:
             return vol
         # 获取order.code 的类型
-        code_type = self.cur_market.loc[code]['type']
+        try:
+            code_type = self.type_dic[code]
+        except:
+            code_type = 'other'
         # 可转债最小交易单位为10张
         if code_type == 'convertible':
             return vol - vol%10
@@ -495,15 +493,24 @@ class World():
                     stat = 'price higher than high'
 
             # 执行交易
+            try:
+                    code_type = self.type_dic[order.code]
+            except:
+                code_type = 'other'
+            try:
+                code_comm = self.comm_dic[code_type]
+            except:
+                code_comm = 0
+                print('注意!未知类型{}，手续费按照0处理'.format(code_type))
             if order.type == 'Buy':
                 # 交易处理完成后现金、持仓变化。
                 cur_cash_ = self.cur_cash - vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                if self.cur_market.loc[order.code]['type'] == 'option':
-                    comm_cost = vol*self.cur_market.loc[order.code]['comm']
+                if code_type == 'option':
+                    comm_cost = vol*code_comm
                 else:
-                    comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
+                    comm_cost = vol*price*code_comm
                 cur_cash_ = cur_cash_ - comm_cost
                 # 订单执行记录
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
@@ -516,10 +523,10 @@ class World():
                 cur_cash_ = self.cur_cash + vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                if self.cur_market.loc[order.code]['type'] == 'option':
-                    comm_cost = vol*self.cur_market.loc[order.code]['comm']
+                if code_type== 'option':
+                    comm_cost = vol*code_comm
                 else:
-                    comm_cost = vol*price*self.cur_market.loc[order.code]['comm']
+                    comm_cost = vol*price*code_comm
                 cur_cash_ = cur_cash_ - comm_cost
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
