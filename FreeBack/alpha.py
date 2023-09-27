@@ -376,16 +376,38 @@ class Portfolio():
 
 
 
+def cal_CrossReg(df_, x_name, y_name, series=False):
+    df = copy.copy(df_)
+    name = y_name + '-' + x_name + '--alpha'
+    beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
+    gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
+    r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
+
+    df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
+
+    if series:
+        return df, beta, gamma, r
+    else:
+        return df
+    
 # 单因子评价  
 # 直接market_factor标准的market以及因子column名
 class EvalFactor():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
-        # 如果需要排除
+        # 因子暴露标准化
+        factor_mean =  factor.groupby('date').mean()
+        factor_std = factor.groupby('date').std()
         # 因子
         factor = pd.DataFrame(factor.rename('factor'))
+        factor['mean'] = factor.index.map(lambda x: factor_mean[x[0]])
+        factor['std'] = factor.index.map(lambda x: factor_std[x[0]])
+        factor = (factor['factor'] - factor['mean'])/factor['std']
+        factor = pd.DataFrame(factor.rename('factor'))
+        # 前一日因子值与当日因子收益率
+        factor = factor.shift()
         # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['IC', 'ICIR'])
+        result = pd.DataFrame(columns = ['IC', 'ICIR', 'factor returns', 'factor returns IR'])
         result.index.name='period'
         # 多周期IC序列
         IC_dict = {}
@@ -396,22 +418,27 @@ class EvalFactor():
             returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
             # 合并df
             df_corr = pd.concat([factor, returns], axis=1).dropna()
-            # 计算IC序列
-            df_corr = df_corr.groupby('date').corr(method='spearman')
-            IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
-            IC_dict[period] = IC_series
+            ## 计算IC序列
+            #df_corr = df_corr.groupby('date').corr(method='spearman')
+            #IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
+            #IC_dict[period] = IC_series
+            df, beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
+
             # 因子指标
-            IC = IC_series.mean()
-            ICIR = IC/IC_series.std()
-            record = {'IC':IC, 'ICIR':ICIR}
+            IC = r.mean()
+            ICIR = IC/r.std()
+            # 因子收益率(单位预测周期 1day)
+            fr = beta.mean()/period
+            frIR = fr/beta.std()
+            record = {'IC':IC, 'ICIR':ICIR, 'factor returns':10000*fr, 'factor returns IR':frIR}
             result.loc[period] = record
         self.result = result
-        # 多周期平均IC序列
-        IC_series = IC_dict[periods[0]]
-        for period in periods[1:]:
-            IC_series += IC_dict[period]
-        IC_series =  IC_series/len(periods)
-        self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+        ## 多周期平均IC序列
+        #IC_series = IC_dict[periods[0]]
+        #for period in periods[1:]:
+        #    IC_series += IC_dict[period]
+        #IC_series =  IC_series/len(periods)
+        #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
 
 
 
