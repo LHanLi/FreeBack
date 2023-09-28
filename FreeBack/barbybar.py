@@ -47,10 +47,8 @@ class World():
 # 单根k线最大成交量限制， 
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market,  type_dic = {}, unit_dic = {}, init_cash = 1000000, 
-                 max_vol_perbar=999, is_round = True, 
-                 init_stat=None, 
-                 ):
+    def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {'other':1}, init_cash = 1000000, 
+                 max_vol_perbar=999, is_round = True, init_stat=None):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
@@ -360,7 +358,7 @@ class World():
         try:
             code_type = self.type_dic[code]
         except:
-            code_type = 'other'
+            code_type = self.type_dic['all_code']
         # 可转债最小交易单位为10张
         if code_type == 'convertible':
             return vol - vol%10
@@ -375,11 +373,11 @@ class World():
             try:
                 code_unit = self.unit_dic[code]
             except:
-                code_unit = 1
-                print('注意！{}的合约乘数未知，默认是1'.format(code))
+                code_unit = self.unit_dic['other']
+                print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
             unit = code_unit
             return vol - vol%unit
-        elif code_type == 'other':
+        elif code_type == 'int_vol':
             return vol//1
         
     # 接收订单对象执行
@@ -500,9 +498,9 @@ class World():
 
             # 执行交易
             try:
-                    code_type = self.type_dic[order.code]
+                code_type = self.type_dic[order.code]
             except:
-                code_type = 'other'
+                code_type = self.type_dic['all_code']
             try:
                 code_comm = self.comm_dic[code_type]
             except:
