@@ -184,7 +184,7 @@ class Portfolio():
                     c=color_list[i], alpha=alpha_list[i])
         # 因子收益
         LS = (self.mat_lr[i_period][-2] - self.mat_lr[i_period][0]).cumsum()
-        factor_return =  100*(np.exp(LS[-1])**(365/(LS.index[-1]-LS.index[0]).days)-1) 
+        factor_return =  100*(np.exp(LS.iloc[-1])**(365/(LS.index[-1]-LS.index[0]).days)-1) 
         ax.plot(LS, c='C0', label='L&S  anu.{r:.2f}%'.format(r=factor_return))
         ax.legend()
         ax.set_title('Period: %d bar(s)'%self.periods[i_period])
@@ -381,7 +381,10 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
     name = y_name + '-' + x_name + '--alpha'
     beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
     gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
-    r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
+    #r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
+    r = df[[x_name, y_name]].groupby('date').corr()
+    r = r.loc[(slice(None), x_name), y_name]
+    r = r.reset_index()[['date', y_name]].set_index('date')[y_name]
 
     df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
 
@@ -409,8 +412,11 @@ class EvalFactor():
         # 输出结果 列：因子指标  行：时间周期
         result = pd.DataFrame(columns = ['IC', 'ICIR', 'factor returns', 'factor returns IR'])
         result.index.name='period'
-        # 多周期IC序列
+        # 多周期IC\因子收益率序列
         IC_dict = {}
+        fr_dict = {}
+        gamma_dict = {}
+        cross_dict = {}
         for period in periods:
             # 预测收益率  预测n期收益率
             returns = (price.shift(-period) - price)/price
@@ -418,27 +424,63 @@ class EvalFactor():
             returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
             # 合并df
             df_corr = pd.concat([factor, returns], axis=1).dropna()
+            cross_dict[period] = df_corr
             ## 计算IC序列
             #df_corr = df_corr.groupby('date').corr(method='spearman')
             #IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
             #IC_dict[period] = IC_series
             df, beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
+            gamma_dict[period] = gamma
 
             # 因子指标
+            IC_dict[period] = r
             IC = r.mean()
             ICIR = IC/r.std()
             # 因子收益率(单位预测周期 1day)
+            fr_dict[period] = beta/period
             fr = beta.mean()/period
             frIR = fr/beta.std()
             record = {'IC':IC, 'ICIR':ICIR, 'factor returns':10000*fr, 'factor returns IR':frIR}
             result.loc[period] = record
+        self.IC_dict = IC_dict
+        self.fr_dict = fr_dict
+        self.cross_dict = cross_dict
+        self.gamma_dict = gamma_dict
         self.result = result
-        ## 多周期平均IC序列
-        #IC_series = IC_dict[periods[0]]
-        #for period in periods[1:]:
-        #    IC_series += IC_dict[period]
-        #IC_series =  IC_series/len(periods)
-        #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+        # 多周期平均IC序列
+        IC_series = IC_dict[periods[0]]
+        for period in periods[1:]:
+            IC_series += IC_dict[period]
+        IC_series =  IC_series/len(periods)
+        self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+
+    # 时间序列上指标
+    def TS_plot(self, period=1, rolling_period=20):
+        rolling_period = 20
+
+        plt, fig, ax = matplot()
+
+        #ax.plot(r, alpha=0.5, label='corr', c='C0')
+        ax.plot(self.IC_dict[period].rolling(rolling_period).mean(), label='corr', c='C0')
+        ax.legend(loc='upper left')
+        ax2 = ax.twinx()
+        #ax2.plot(beta, alpha=0.5, label='factor return', c='C1')
+        ax2.plot(self.fr_dict[period].rolling(rolling_period).mean(), label='factor return', c='C1')
+        ax2.legend(loc='upper right')
+        plt.show()
+
+    # 截面因子与收益率
+    def Cross_plot(self, date, period=1):
+        plt, fig, ax = matplot()
+
+        df_corr = self.cross_dict[period]
+        beta = self.fr_dict[period]*period
+        gamma = self.gamma_dict[period]
+        r = self.IC_dict[period]
+        ax.scatter(df_corr.loc[date]['factor'], df_corr.loc[date]['value'])
+        ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
+        plt.title('r = %.2lf'%r.loc[date])
+        plt.show()
 
 
 
