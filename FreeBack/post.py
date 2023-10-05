@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import datetime
 
 # matplot绘图
@@ -211,7 +212,7 @@ class Post():
             net = self.net.loc[timerange[0]:timerange[1]]
             returns = self.returns.loc[timerange[0]:timerange[1]]
             # 计算夏普
-            years = (timerange[1]-timerange[0]).days/365
+            years = (pd.to_datetime(timerange[1])-pd.to_datetime(timerange[0])).days/365
             return_annual = (net[-1]/net[0])**(1/years)-1
             std_annual = np.std(np.log(returns+1))*np.sqrt(250)
             sharpe = (return_annual - self.rf)/std_annual
@@ -219,7 +220,7 @@ class Post():
             ax.plot(net/net[0], c='C0', label='p&l')
             if type(self.benchmark) != type(None):
                 benchmark = self.benchmark.loc[timerange[0]:timerange[1]].copy()
-                benchmark.loc[timerange[0]] = 0
+                benchmark.iloc[0] = 0
         # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):

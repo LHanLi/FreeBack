@@ -12,6 +12,9 @@ def Rank(factor):
   # normlize
     return rank/rank.groupby('date').max()
 
+# 标准化
+def Norm(factor):
+    return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
 
 # 为了使得并行回测尽可能与事件驱动框架结果接近：
 # 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
@@ -66,7 +69,7 @@ class Portfolio():
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
     #def __init__(self, factor, price, price_return, holdweight=None, cheat = True, comm=0.5):
-    def __init__(self, factor, price, holdweight=None, cheat = False, comm=0.5, norm=True):
+    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0.5, norm=True):
         self.comm = comm
         self.cheat = cheat
         self.norm = norm
@@ -212,7 +215,7 @@ class Portfolio():
         #        c='C1')
         for i in range(number):
             if self.norm==True:
-                ax.plot(self.threshold[i+1].rolling(5).mean(), label=str(self.a_b[i][1]),
+                ax.plot(self.threshold[i+1].rolling(20).mean(), label=str(self.a_b[i][1]),
                     c=color_list[i], alpha=alpha_list[i])
             else:
                 line = pd.Series(index=self.returns.index).copy()
@@ -255,7 +258,7 @@ class Portfolio():
         for period in self.periods:
             # 以period为周期 调整持仓的持仓表
             # 选取的index  period = 3  0,0,0,3,3,3,6...
-            list_take_hold = [[hold.index[int(i/period)*period] for i in range(len(hold.index))] 
+            list_take_hold = [[hold.index[int(i/period)*period] for i in range(len(hold.index))]
                     for hold in bar_hold]
             list_hold = [bar_hold[i].loc[list_take_hold[i]]
                     for i in range(len(bar_hold))]
@@ -359,7 +362,7 @@ class Portfolio():
             L_return_annual = np.exp(L_returns.sum()/duryears) - 1
             L_sharpe = (L_return_annual-0.03)/L_std
             # 市场组合（等权）
-            M_returns = self.mat_lr[i][-1] 
+            M_returns = self.mat_lr[i][-1]
             M_std = M_returns.std()*np.sqrt(250)
             M_return_annual = np.exp(M_returns.sum()/duryears) - 1
             M_sharpe = (M_return_annual-0.03)/M_std
@@ -381,10 +384,11 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
     name = y_name + '-' + x_name + '--alpha'
     beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
     gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
-    #r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
-    r = df[[x_name, y_name]].groupby('date').corr()
-    r = r.loc[(slice(None), x_name), y_name]
-    r = r.reset_index()[['date', y_name]].set_index('date')[y_name]
+    ##r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
+    #r = df[[x_name, y_name]].groupby('date').corr()
+    #r = r.loc[(slice(None), x_name), y_name]
+    #r = r.reset_index()[['date', y_name]].set_index('date')[y_name]
+    r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
 
     df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
 
@@ -399,18 +403,19 @@ class EvalFactor():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
         # 因子暴露标准化
-        factor_mean =  factor.groupby('date').mean()
-        factor_std = factor.groupby('date').std()
+        #factor_mean =  factor.groupby('date').mean()
+        #factor_std = factor.groupby('date').std()
         # 因子
+        factor = Norm(factor)
+        self.factor = factor
         factor = pd.DataFrame(factor.rename('factor'))
-        factor['mean'] = factor.index.map(lambda x: factor_mean[x[0]])
-        factor['std'] = factor.index.map(lambda x: factor_std[x[0]])
-        factor = (factor['factor'] - factor['mean'])/factor['std']
-        factor = pd.DataFrame(factor.rename('factor'))
-        # 前一日因子值与当日因子收益率
-        factor = factor.shift()
+        #factor['mean'] = factor.index.map(lambda x: factor_mean[x[0]])
+        #factor['std'] = factor.index.map(lambda x: factor_std[x[0]])
+        #factor['norm'] = (factor['factor'] - factor['mean'])/factor['std']
+        #factor = factor['norm']
+        #factor = pd.DataFrame(factor.rename('factor'))
         # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['IC', 'ICIR', 'factor returns', 'factor returns IR'])
+        result = pd.DataFrame(columns = ['R2', 'IC', 'ICIR', 'factor returns', 'factor returns IR'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
@@ -436,11 +441,13 @@ class EvalFactor():
             IC_dict[period] = r
             IC = r.mean()
             ICIR = IC/r.std()
+            r2 = (r**2).mean()
             # 因子收益率(单位预测周期 1day)
             fr_dict[period] = beta/period
             fr = beta.mean()/period
             frIR = fr/beta.std()
-            record = {'IC':IC, 'ICIR':ICIR, 'factor returns':10000*fr, 'factor returns IR':frIR}
+            record = {'R2':r2, 'IC':IC, 'ICIR':ICIR, 'factor returns':250*fr, \
+                      'factor returns IR':np.sqrt(250)*frIR}
             result.loc[period] = record
         self.IC_dict = IC_dict
         self.fr_dict = fr_dict
@@ -448,12 +455,23 @@ class EvalFactor():
         self.gamma_dict = gamma_dict
         self.result = result
         # 多周期平均IC序列
-        IC_series = IC_dict[periods[0]]
-        for period in periods[1:]:
-            IC_series += IC_dict[period]
-        IC_series =  IC_series/len(periods)
-        self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
+        #IC_series = IC_dict[periods[0]]
+        #for period in periods[1:]:
+        #    IC_series += IC_dict[period]
+        #IC_series =  IC_series/len(periods)
+        #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
 
+    # 因子收益率
+    def fr_plot(self, period=1, rolling_period=20):
+        plt, fig, ax = matplot()
+
+        ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
+        ax.legend(loc='lower left')
+        ax2 = ax.twinx()
+        ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率', c='C1')
+        ax2.legend(loc='lower right')
+        plt.show()
+    
     # 时间序列上指标
     def TS_plot(self, period=1, rolling_period=20):
         rolling_period = 20
@@ -470,16 +488,20 @@ class EvalFactor():
         plt.show()
 
     # 截面因子与收益率
-    def Cross_plot(self, date, period=1):
+    def Cross_plot(self, date=None, period=1):
         plt, fig, ax = matplot()
 
         df_corr = self.cross_dict[period]
         beta = self.fr_dict[period]*period
         gamma = self.gamma_dict[period]
         r = self.IC_dict[period]
-        ax.scatter(df_corr.loc[date]['factor'], df_corr.loc[date]['value'])
-        ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
-        plt.title('r = %.2lf'%r.loc[date])
+        if type(date)==type(None):
+            ax.scatter(df_corr['factor'].values, df_corr['value'].values)
+            ax.plot(np.linspace(-3,3,100), beta.mean()*np.linspace(-3,3,100) + gamma.mean(), c='C3')
+        else:
+            ax.scatter(df_corr.loc[date]['factor'], df_corr.loc[date]['value'])
+            ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
+            plt.title('r = %.2lf beta = %.2lf'%(r.loc[date], beta.loc[date]*10000))
         plt.show()
 
 
