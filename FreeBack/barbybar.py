@@ -47,7 +47,7 @@ class World():
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market, init_cash = 1000000, comm = 7, 
-                 max_vol_perbar=999, tradetype=None, 
+                 max_vol_perbar=1e10, tradetype=None, 
                  init_stat=None,
                  ):
         self.temp_log = ''
@@ -58,16 +58,13 @@ class World():
         self.comm = comm/10000
         self.max_vol_perbar = max_vol_perbar
         self.tradetype = tradetype
-
     # barline 时间线（run函数遍历barline）
         self.barline = market.index.get_level_values(0).unique()
     # 当前bar 日期
         self.bar_n = 0
         self.cur_bar = self.barline[self.bar_n]
-
     # 当前市场
         self.cur_market = self.market.loc[self.cur_bar]
-
     # queue_order 订单队列（每个bar开始前检查策略在上一个bar发出的订单，并且执行）
         self.queue_order = queue.PriorityQueue()
     # 交易员列表，策略可以像列表中添加交易员，一个交易员对应一个交易员函数，如果交易执行完毕则
@@ -76,7 +73,7 @@ class World():
     # df_excute 订单执行记录（所有被执行订单会被记录到df_excute中）
         # columns:
         # 日期(订单执行），代码，买卖类型，执行价，发生数量，
-        # 发生金额， 交易成本， 剩余现金， 执行状态， 
+        # 发生金额， 交易成本， 剩余现金， 执行状态，
         # 订单报价类型（限价单、特定规则（平均价成交等））， 订单报价张数
         temp = ['date', 'code', 'BuyOrSell', 'price', 'occurance_vol', 
                 'occurance_amount', 'comm', 'remain_vol', 'remain_amount',
@@ -87,7 +84,6 @@ class World():
         self.df_excute.index.name = 'unique'
         # index: 订单唯一id(每个订单被加入到df_excute之后+1)
         self.unique = 0
-        
     # df_hold 持仓表 columns为market中所有标的代码，index为barline，value为持有张数
         all_codes = list(market.index.get_level_values(1).unique())
         df_hold = pd.DataFrame(columns = all_codes)
@@ -556,7 +552,6 @@ class World():
             self.df_hold.loc[self.cur_bar] = self.df_hold.iloc[-1]
             self.update_cash(self.cur_cash)
             self.update_net()
-
             # 交易员下单
             self.runtrader()
         # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
