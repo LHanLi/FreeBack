@@ -377,7 +377,7 @@ class World():
                 print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
             unit = code_unit
             return vol - vol%unit
-        elif code_type == 'int_vol':
+        elif code_type == 'other':
             return vol//1
         
     # 接收订单对象执行
