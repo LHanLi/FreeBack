@@ -1,34 +1,38 @@
 import numpy as np
+import pandas as pd
 import datetime
 
 # matplot绘图
 def matplot(r=1, c=1, sharex=False, sharey=False, w=8, d=5):
-  import seaborn as sns
-  import matplotlib.pyplot as plt
-  # don't use sns style
-  sns.reset_orig()
-  #plot
-  #run configuration 
-  plt.rcParams['font.size']=14
-  plt.rcParams['font.family'] = 'KaiTi'
-  #plt.rcParams['font.family'] = 'Arial'
-  plt.rcParams["axes.unicode_minus"]=False #该语句解决图像中的“-”负号的乱码问题
-  plt.rcParams['axes.linewidth']=1
-  plt.rcParams['axes.grid']=True
-  plt.rcParams['grid.linestyle']='--'
-  plt.rcParams['grid.linewidth']=0.2
-  plt.rcParams["savefig.transparent"]='True'
-  plt.rcParams['lines.linewidth']=0.8
-  plt.rcParams['lines.markersize'] = 1
-  
-  #保证图片完全展示
-  plt.tight_layout()
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    # don't use sns style
+    sns.reset_orig()
+    #plot
+    #run configuration 
+    plt.rcParams['font.size']=14
+    plt.rcParams['font.family'] = 'KaiTi'
+    #plt.rcParams['font.family'] = 'Arial'
+    plt.rcParams['font.sans-serif']=['Microsoft YaHei']
+    plt.rcParams["axes.unicode_minus"]=False #该语句解决图像中的“-”负号的乱码问题
+    plt.rcParams['axes.linewidth']=1
+    plt.rcParams['axes.grid']=True
+    plt.rcParams['grid.linestyle']='--'
+    plt.rcParams['grid.linewidth']=0.2
+    plt.rcParams["savefig.transparent"]='True'
+    plt.rcParams['lines.linewidth']=0.8
+    plt.rcParams['lines.markersize'] = 1
     
-  #subplot
-  fig,ax = plt.subplots(r,c,sharex=sharex, sharey=sharey,figsize=(w,d))
-  plt.subplots_adjust(left=None, bottom=None, right=None, top=None, hspace = None, wspace=0.5)
-  
-  return plt, fig, ax
+    #保证图片完全展示
+    plt.tight_layout()
+        
+    #subplot
+    fig,ax = plt.subplots(r,c,sharex=sharex, sharey=sharey,figsize=(w,d))
+    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, hspace = None, wspace=0.5)
+        
+    plt.gcf().autofmt_xdate()
+
+    return plt, fig, ax
 
 # 月度数据热力图  
 # period_value格式为 index month ‘2023-7-1’  value  0: ***
@@ -200,8 +204,10 @@ class Post():
         #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
         turnover = (occurance_amount/world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
+        # 超额收益 默认第一个benchmark 
+        self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
 # 净值曲线
-    def pnl(self, timerange=None, filename=None, log=False, excess=True):
+    def pnl(self, timerange=None, detail=False, filename=None, log=False, excess=True):
         plt, fig, ax = matplot()
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
@@ -209,20 +215,37 @@ class Post():
             net = self.net.loc[timerange[0]:timerange[1]]
             returns = self.returns.loc[timerange[0]:timerange[1]]
             # 计算夏普
-            years = (timerange[1]-timerange[0]).days/365
+            years = (pd.to_datetime(timerange[1])-pd.to_datetime(timerange[0])).days/365
             return_annual = (net[-1]/net[0])**(1/years)-1
-            std_annual = np.std(np.log(returns+1))*np.sqrt(250)
+            std_annual = returns.std()*np.sqrt(250)
             sharpe = (return_annual - self.rf)/std_annual
-            ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
+            if detail:
+                # 回撤
+                a = np.maximum.accumulate(net)
+                drawdown = (a-net)/a 
+                ax.text(0.7,0.05,'年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%\n'.format(
+                    round(100*return_annual,2), round(sharpe,2), 
+                        round(100*max(drawdown),2)), transform=ax.transAxes)
+                # 回撤
+                ax2 = ax.twinx()
+                ax2.fill_between(drawdown.index,-100*drawdown, 0, color='C1', alpha=0.1)
+                if excess:
+                    ax.plot(np.exp(self.excess_lr.loc[timerange[0]:timerange[1]].cumsum()), 
+                            c='C3', label='超额收益')
+            else:
+                ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
             if type(self.benchmark) != type(None):
                 benchmark = self.benchmark.loc[timerange[0]:timerange[1]].copy()
-                benchmark.loc[timerange[0]] = 0
+                benchmark.iloc[0] = 0
         # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):
                     ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), 
                             c=colors_list[i], label=benchmark.columns[i])
+            if log:
+                # 对数坐标显示
+                ax.set_yscale("log")
             ax.set_xlim(returns.index[0], returns.index[-1])
             plt.gcf().autofmt_xdate()
         else: 
@@ -241,13 +264,11 @@ class Post():
                 for i in range(len(benchmark.columns)):
                     ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(),  c=colors_list[i], label=benchmark.columns[i])
                 if excess:
-                    # 超额收益 self.lr - np.log(benchmark[benchmark.columns[0]]+1)
-                    self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
                     ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
                 plt.legend(loc='upper left')
             if log:
                 # 对数坐标显示
-                plt.yscale("log")
+                ax.set_yscale("log")
             # 回撤
             ax2 = ax.twinx()
             ax2.fill_between(self.drawdown.index,-100*self.drawdown, 0, color='C1', alpha=0.1)
