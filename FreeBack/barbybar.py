@@ -527,6 +527,9 @@ class World():
     def dividend(self):
         pass
 
+    # 初始化
+    def init(self):
+        pass
     # 策略
     def strategy(self):
         pass
