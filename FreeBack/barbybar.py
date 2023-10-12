@@ -242,10 +242,6 @@ class World():
             inmarket = True
             try:
                 self.cur_market['vol'].loc[code] == 0
-            #    # 停牌
-            #    if self.cur_market['vol'].loc[code]==0:
-            #        #self.log_warning('target amount sus----code: %s'%(code))
-            #        inmarket = False
             except:
                 # 没有找到code不发生交易
                 #self.log_error('target amount 404----code: %s'%(code))
@@ -290,6 +286,8 @@ class World():
             if code not in trader.weight.index:
                 self.sell(code, price_type=trader.price)
         # 在code_list中的补齐至amount
+        sell_list = []
+        buy_list = []
         for code, w in trader.weight.items():
             amount = w*net
             # 如果不在市场中，则卖出999
@@ -299,9 +297,14 @@ class World():
             except:
                 delta = -999 
             if delta <= 0:
-                self.sell(code, -delta, trader.price)
+                sell_list.append((code, -delta))
             else:
-                self.buy(code, delta, trader.price)
+                buy_list.append((code, delta))
+        # 先卖后买
+        for task in sell_list:
+            self.sell(task[0], task[1], trader.price)
+        for task in buy_list:
+            self.buy(task[0], task[1], trader.price)
     # 买入持有固定时间
     def trade_buyhold(self, code, vol, holdtime):
         trader = Trader('buyhold_trader')
@@ -359,7 +362,10 @@ class World():
         except:
             code_unit = self.unit_dic['other']
             print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
-        return vol - vol%code_unit
+        if code_unit < 1e-5:
+            return vol
+        else:
+            return vol - vol%code_unit
         
     # 接收订单对象执行
     def excute(self, order):
