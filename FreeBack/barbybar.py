@@ -327,9 +327,6 @@ class World():
     def trade_buystop(self, code, amount):
         pass
 
-    # 初始化（定义变量等）
-    def init(self):
-        pass
     # 交易员
     def runtrader(self):
         # 执行全部queue_trader中trader
