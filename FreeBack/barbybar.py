@@ -48,12 +48,12 @@ class World():
 # 交易证券类型 'convertible' 'convertible_split' 'stock'
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {'other':1}, init_cash = 1000000, 
-                 max_vol_perbar=999, is_round = True, init_stat=None):
+                 max_vol_perbar=1e10, init_stat=None):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
         self.market = market
-        self.comm_dic = {'option':0.0002, 'stock':0, 'other':0}
+        self.comm_dic = {'option':0.0002, 'stock':0.0005, 'other':0}
         self.type_dic = type_dic
         self.unit_dic = unit_dic
         self.init_cash = init_cash
@@ -351,9 +351,6 @@ class World():
     # 执行订单部分
 #    @staticmethod
     def rounding(self, vol, code):
-        #判断是否要round
-        if not self.is_round:
-            return vol
         # 获取order.code 的类型
         try:
             code_type = self.type_dic[code]
@@ -370,6 +367,8 @@ class World():
         elif code_type == 'stock':
             return vol - vol%100
         elif code_type == 'other':
+            return vol
+        elif code_type == 'int_vol':
             return vol//1
         else:
             try:
