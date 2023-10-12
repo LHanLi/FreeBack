@@ -49,7 +49,7 @@ class World():
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market,  type_dic = {'all_code': 'other'}, 
                 unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1},\
-                comm_dic = {'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4, 'other':0}
+                comm_dic = {'other':0, 'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4},
               init_cash = 1000000, max_vol_perbar=1e10, init_stat=None):
         self.temp_log = ''
         self.error_log = ''

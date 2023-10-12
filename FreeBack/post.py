@@ -205,7 +205,7 @@ class Post():
         turnover = (occurance_amount/world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
         # 超额收益 默认第一个benchmark
-        if benchmark == None:
+        if type(benchmark) == type(None):
             benchmark = pd.DataFrame(index = world.series_net.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
