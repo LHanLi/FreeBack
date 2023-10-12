@@ -45,21 +45,21 @@ class Trader():
 class World():
 # 初始化  market(DataFrame)， 初始资金， 交易成本（万），
 # 单根k线最大成交量限制， 
-# 交易证券类型 'convertible' 'convertible_split' 'stock'
+# 交易证券类型 字典 code映射到'convertibe'、'stock'等
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {'other':1}, init_cash = 1000000, 
-                 max_vol_perbar=1e10, init_stat=None):
+    def __init__(self, market,  type_dic = {'all_code': 'other'}, 
+                unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1},\
+                comm_dic = {'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4, 'other':0}
+              init_cash = 1000000, max_vol_perbar=1e10, init_stat=None):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
         self.market = market
-        self.comm_dic = {'option':0.0002, 'stock':0.0005, 'other':0}
+        self.comm_dic = comm_dic
         self.type_dic = type_dic
         self.unit_dic = unit_dic
         self.init_cash = init_cash
         self.max_vol_perbar = max_vol_perbar
-        self.is_round = is_round
-
 
     # barline 时间线（run函数遍历barline）
         self.barline = market.index.get_level_values(0).unique()
@@ -353,28 +353,13 @@ class World():
             code_type = self.type_dic[code]
         except:
             code_type = self.type_dic['all_code']
-        # 可转债最小交易单位为10张
-        if code_type == 'convertible':
-            return vol - vol%10
-        # 可转债拆单，最小成交为30张
-        elif code_type == 'convertible_split':
-            if vol <= 30:
-                return 0
-            return vol - vol%10
-        elif code_type == 'stock':
-            return vol - vol%100
-        elif code_type == 'other':
-            return vol
-        elif code_type == 'int_vol':
-            return vol//1
-        else:
-            try:
-                code_unit = self.unit_dic[code_type]
-            except:
-                code_unit = self.unit_dic['other']
-                print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
-            unit = code_unit
-            return vol - vol%unit
+        # 订单取整
+        try:
+            code_unit = self.unit_dic[code_type]
+        except:
+            code_unit = self.unit_dic['other']
+            print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
+        return vol - vol%code_unit
         
     # 接收订单对象执行
     def excute(self, order):
