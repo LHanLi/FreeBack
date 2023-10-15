@@ -54,7 +54,13 @@ class World():
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
-        self.market = market
+        if type(market.index)==pd.core.indexes.multi.MultiIndex:
+            self.market = market
+        else:
+        # 对于单品种策略添加code索引（’onlyone‘）
+            market = market.reset_index()
+            market['code'] = 'onlyone'
+            self.market = market.set_index(['date', 'code'])
         self.comm_dic = comm_dic
         self.type_dic = type_dic
         self.unit_dic = unit_dic
@@ -62,7 +68,7 @@ class World():
         self.max_vol_perbar = max_vol_perbar
 
     # barline 时间线（run函数遍历barline）
-        self.barline = market.index.get_level_values(0).unique()
+        self.barline = self.market.index.get_level_values(0).unique()
     # 当前bar 日期
         self.bar_n = 0
         self.cur_bar = self.barline[self.bar_n]
@@ -91,7 +97,7 @@ class World():
         self.unique = 0
         
     # df_hold 持仓表 columns为market中所有标的代码，index为barline，value为持有张数
-        all_codes = list(market.index.get_level_values(1).unique())
+        all_codes = list(self.market.index.get_level_values(1).unique())
         df_hold = pd.DataFrame(columns = all_codes)
         df_hold.columns.name = 'code'
         df_hold.index.name = 'date'
@@ -181,7 +187,6 @@ class World():
     # 提交订单函数
     def buy(self, code = None, vol = None, price_type = 'open'):
         # 默认做空平仓
-        # 无参数时默认全部清仓
         if code == None:
             for code,vol in self.cur_hold_vol.items():
                 if vol < 0:
@@ -199,7 +204,7 @@ class World():
             else:
                 return
         else:
-            # amount为正表示做多 为负表示做空
+            # vol为正表示做多 为负表示做空
             order = Order('Buy', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
