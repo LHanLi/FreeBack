@@ -50,17 +50,43 @@ class World():
     def __init__(self, market,  type_dic = {'all_code': 'other'}, 
                 unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1},\
                 comm_dic = {'other':0, 'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4},
-              init_cash = 1000000, max_vol_perbar=1e10, init_stat=None):
+              init_cash = 1000000, max_vol_perbar=1e10, init_stat=None, short=False):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
         if type(market.index)==pd.core.indexes.multi.MultiIndex:
-            self.market = market
+            # 添加保证金代码
+            if short:
+                deposit = pd.DataFrame(index=market.index.get_level_values(0).unique())
+                deposit['code']  = 'deposit'
+                deposit['close'] = 1
+                deposit['open'] = 1
+                deposit['low'] = 1
+                deposit['high'] = 1
+                deposit['vol'] = 1e10
+                deposit = deposit.reset_index().set_index(['date', 'code'])
+                self.market = pd.concat([market, deposit]).sort_values('date') 
+            else:
+                self.market = market
         else:
-        # 对于单品种策略添加code索引（’onlyone‘）
-            market = market.reset_index()
-            market['code'] = 'onlyone'
-            self.market = market.set_index(['date', 'code'])
+            if short:
+                deposit = pd.DataFrame(index=market.index)
+                deposit['code']  = 'deposit'
+                deposit['close'] = 1
+                deposit['open'] = 1
+                deposit['low'] = 1
+                deposit['high'] = 1
+                deposit['vol'] = 1e10
+                deposit = deposit.reset_index().set_index(['date', 'code'])
+                market = market.reset_index()
+                market['code'] = 'onlyone'
+                market = market.set_index(['date', 'code'])
+                self.market = pd.concat([market, deposit]).sort_values('date')
+            else:
+            # 对于单品种策略添加code索引（’onlyone‘）
+                market = market.reset_index()
+                market['code'] = 'onlyone'
+                self.market = market.set_index(['date', 'code'])
         self.comm_dic = comm_dic
         self.type_dic = type_dic
         self.unit_dic = unit_dic
@@ -184,25 +210,34 @@ class World():
         self.cur_net = hold_amount.sum() + self.cur_cash
         self.series_net.loc[self.cur_bar] = self.cur_net
 
-    # 提交订单函数
+    # 基础订单函数
+    # 买- == 卖+
+    # 卖- == 买+
     def buy(self, code = None, vol = None, price_type = 'open'):
-        # 默认做空平仓
+        # 无参数时默认平仓做空品种
         if code == None:
             for code,vol in self.cur_hold_vol.items():
                 if vol < 0:
-                    order = Order('Buy', code, -vol, price_type, self.unique)
                     self.unique += 1
+                    order = Order('Buy', code, -vol, price_type, self.unique)
                     self.sub_order(order)
                 else:
                     return
+        # 默认买入至满仓，原来做空继续做空、原来做多继续做多,无持仓做多
         elif vol == None:
-            vol = self.cur_hold_vol[code]
+            try:
+                vol = self.cur_hold_vol[code]
+            except:
+                vol = 0
+            tradevol = self.cur_cash/self.cur_market.loc[code]['close']
             if vol < 0:
-                order = Order('Buy', code, -vol, price_type, self.unique)
                 self.unique += 1
+                order = Order('Buy', code, -tradevol, price_type, self.unique)
                 self.sub_order(order)
             else:
-                return
+                self.unique += 1
+                order = Order('Buy', code, tradevol, price_type, self.unique)
+                self.sub_order(order)
         else:
             # vol为正表示做多 为负表示做空
             order = Order('Buy', code, vol, price_type, self.unique)
@@ -215,15 +250,15 @@ class World():
                 order = Order('Sell', code, vol, price_type, self.unique)
                 self.unique += 1
                 self.sub_order(order)
-        # 无委托量时默认清仓该code
+        # 无委托量时默认清仓/平仓该code
         elif vol == None:
-            vol = self.cur_hold_vol[code]
-            if vol>0:
-                order = Order('Sell', code, self.cur_hold_vol[code], price_type, self.unique)
-                self.unique += 1
-                self.sub_order(order)
-            else:
-                return
+            try:
+                vol = self.cur_hold_vol[code]
+            except:
+                vol = 0
+            order = Order('Sell', code, -vol, price_type, self.unique)
+            self.unique += 1
+            self.sub_order(order)
         else:
             order = Order('Sell', code, vol, price_type, self.unique)
             self.unique += 1
