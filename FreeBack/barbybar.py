@@ -554,7 +554,7 @@ class World():
                 cur_cash_ = self.cur_cash + vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                if code_type.split['_'][-1]== 'option' or code_type.split['_'][-1]== 'future':
+                if code_type.split9('_')[-1]== 'option' or code_type.split('_')[-1]== 'future':
                     comm_cost = vol*code_comm
                 else:
                     comm_cost = vol*price*code_comm
