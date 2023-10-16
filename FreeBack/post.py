@@ -204,7 +204,11 @@ class Post():
         #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
         turnover = (occurance_amount/world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
-        # 超额收益 默认第一个benchmark 
+        # 超额收益 默认第一个benchmark
+        if type(benchmark) == type(None):
+            benchmark = pd.DataFrame(index = world.series_net.index)
+            benchmark['zero'] = 0
+            self.benchmark = benchmark
         self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
 # 净值曲线
     def pnl(self, timerange=None, detail=False, filename=None, log=False, excess=True):
@@ -352,12 +356,20 @@ class Post():
     def position(self):
         plt, fig, ax = matplot()
         held_amount = self.held.groupby('date').sum()
-        ax.plot(held_amount/(self.cash+held_amount), label='非现金仓位')
-        ax.plot(self.held.groupby('date').max()/(self.cash+held_amount), label='第一大持仓仓位')
+        # 0是资产 1是现金
+        df_total = pd.concat([self.held.groupby('date').sum(), self.cash], axis=1).fillna(0)
+        df_max = pd.concat([self.held.groupby('date').max(), self.cash], axis=1).fillna(0)
+        df_count = pd.concat([self.held.groupby('date').count(), self.cash], axis=1).fillna(0)
+        #held_amount = self.df_hold.sum(axis=1)
+        #ax.plot(held_amount/(self.cash+held_amount), label='非现金仓位')
+        ax.plot(df_total[0]/df_total.sum(axis=1), label='非现金仓位')
+        #ax.plot(self.held.groupby('date').max()/(self.cash+held_amount), label='第一大持仓仓位')
+        ax.plot(df_max[0]/df_total.sum(axis=1), label='第一大持仓仓位')
         ax.set_xlim(self.held.index[0][0], self.held.index[-1][0])
         ax.legend(loc = 'upper left')
         ax2 = ax.twinx()
-        ax2.plot(self.held.groupby('date').count(), c="C2", label='持有标的数量')
+        #ax2.plot(self.held.groupby('date').count(), c="C2", label='持有标的数量')
+        ax2.plot(df_count[0], c="C2", label='持有标的数量')
         ax2.legend(loc = 'upper right')
         plt.gcf().autofmt_xdate()
         plt.savefig('position.png')

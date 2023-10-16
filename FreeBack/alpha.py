@@ -415,7 +415,7 @@ class EvalFactor():
         #factor = factor['norm']
         #factor = pd.DataFrame(factor.rename('factor'))
         # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['R2', 'IC', 'ICIR', 'factor returns', 'factor returns IR'])
+        result = pd.DataFrame(columns = ['R2', 'IC', 'ICIR', 'annual returns', 'sharpe'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
@@ -446,8 +446,8 @@ class EvalFactor():
             fr_dict[period] = beta/period
             fr = beta.mean()/period
             frIR = fr/beta.std()
-            record = {'R2':r2, 'IC':IC, 'ICIR':ICIR, 'factor returns':250*fr, \
-                      'factor returns IR':np.sqrt(250)*frIR}
+            record = {'R2':r2, 'IC':IC, 'ICIR':ICIR, 'annual returns':250*fr, \
+                      'sharpe':np.sqrt(250)*frIR}
             result.loc[period] = record
         self.IC_dict = IC_dict
         self.fr_dict = fr_dict

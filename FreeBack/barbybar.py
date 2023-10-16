@@ -45,24 +45,56 @@ class Trader():
 class World():
 # 初始化  market(DataFrame)， 初始资金， 交易成本（万），
 # 单根k线最大成交量限制， 
-# 交易证券类型 'convertible' 'convertible_split' 'stock'
+# 交易证券类型 字典 code映射到'convertibe'、'stock'等
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
-    def __init__(self, market,  type_dic = {'all_code': 'other'}, unit_dic = {'other':1}, init_cash = 1000000, 
-                 max_vol_perbar=999, is_round = True, init_stat=None):
+    def __init__(self, market,  type_dic = {'all_code': 'other'}, 
+                unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1},\
+                comm_dic = {'other':0, 'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4},
+              init_cash = 1000000, max_vol_perbar=1e10, init_stat=None, short=False):
         self.temp_log = ''
         self.error_log = ''
         self.warning_log = ''
-        self.market = market
-        self.comm_dic = {'option':0.0002, 'stock':0, 'other':0}
+        if type(market.index)==pd.core.indexes.multi.MultiIndex:
+            # 添加保证金代码
+            if short:
+                deposit = pd.DataFrame(index=market.index.get_level_values(0).unique())
+                deposit['code']  = 'deposit'
+                deposit['close'] = 1
+                deposit['open'] = 1
+                deposit['low'] = 1
+                deposit['high'] = 1
+                deposit['vol'] = 1e10
+                deposit = deposit.reset_index().set_index(['date', 'code'])
+                self.market = pd.concat([market, deposit]).sort_values('date') 
+            else:
+                self.market = market
+        else:
+            if short:
+                deposit = pd.DataFrame(index=market.index)
+                deposit['code']  = 'deposit'
+                deposit['close'] = 1
+                deposit['open'] = 1
+                deposit['low'] = 1
+                deposit['high'] = 1
+                deposit['vol'] = 1e10
+                deposit = deposit.reset_index().set_index(['date', 'code'])
+                market = market.reset_index()
+                market['code'] = 'onlyone'
+                market = market.set_index(['date', 'code'])
+                self.market = pd.concat([market, deposit]).sort_values('date')
+            else:
+            # 对于单品种策略添加code索引（’onlyone‘）
+                market = market.reset_index()
+                market['code'] = 'onlyone'
+                self.market = market.set_index(['date', 'code'])
+        self.comm_dic = comm_dic
         self.type_dic = type_dic
         self.unit_dic = unit_dic
         self.init_cash = init_cash
         self.max_vol_perbar = max_vol_perbar
-        self.is_round = is_round
-
 
     # barline 时间线（run函数遍历barline）
-        self.barline = market.index.get_level_values(0).unique()
+        self.barline = self.market.index.get_level_values(0).unique()
     # 当前bar 日期
         self.bar_n = 0
         self.cur_bar = self.barline[self.bar_n]
@@ -91,7 +123,7 @@ class World():
         self.unique = 0
         
     # df_hold 持仓表 columns为market中所有标的代码，index为barline，value为持有张数
-        all_codes = list(market.index.get_level_values(1).unique())
+        all_codes = list(self.market.index.get_level_values(1).unique())
         df_hold = pd.DataFrame(columns = all_codes)
         df_hold.columns.name = 'code'
         df_hold.index.name = 'date'
@@ -178,28 +210,36 @@ class World():
         self.cur_net = hold_amount.sum() + self.cur_cash
         self.series_net.loc[self.cur_bar] = self.cur_net
 
-    # 提交订单函数
+    # 基础订单函数
+    # 买- == 卖+
+    # 卖- == 买+
     def buy(self, code = None, vol = None, price_type = 'open'):
-        # 默认做空平仓
-        # 无参数时默认全部清仓
+        # 无参数时默认平仓做空品种
         if code == None:
             for code,vol in self.cur_hold_vol.items():
                 if vol < 0:
-                    order = Order('Buy', code, -vol, price_type, self.unique)
                     self.unique += 1
+                    order = Order('Buy', code, -vol, price_type, self.unique)
                     self.sub_order(order)
                 else:
                     return
+        # 默认买入至满仓，原来做空继续做空、原来做多继续做多,无持仓做多
         elif vol == None:
-            vol = self.cur_hold_vol[code]
+            try:
+                vol = self.cur_hold_vol[code]
+            except:
+                vol = 0
+            tradevol = self.cur_cash/self.cur_market.loc[code]['close']
             if vol < 0:
-                order = Order('Buy', code, -vol, price_type, self.unique)
                 self.unique += 1
+                order = Order('Buy', code, -tradevol, price_type, self.unique)
                 self.sub_order(order)
             else:
-                return
+                self.unique += 1
+                order = Order('Buy', code, tradevol, price_type, self.unique)
+                self.sub_order(order)
         else:
-            # amount为正表示做多 为负表示做空
+            # vol为正表示做多 为负表示做空
             order = Order('Buy', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
@@ -210,15 +250,15 @@ class World():
                 order = Order('Sell', code, vol, price_type, self.unique)
                 self.unique += 1
                 self.sub_order(order)
-        # 无委托量时默认清仓该code
+        # 无委托量时默认清仓/平仓该code
         elif vol == None:
-            vol = self.cur_hold_vol[code]
-            if vol>0:
-                order = Order('Sell', code, self.cur_hold_vol[code], price_type, self.unique)
-                self.unique += 1
-                self.sub_order(order)
-            else:
-                return
+            try:
+                vol = self.cur_hold_vol[code]
+            except:
+                vol = 0
+            order = Order('Sell', code, -vol, price_type, self.unique)
+            self.unique += 1
+            self.sub_order(order)
         else:
             order = Order('Sell', code, vol, price_type, self.unique)
             self.unique += 1
@@ -242,10 +282,6 @@ class World():
             inmarket = True
             try:
                 self.cur_market['vol'].loc[code] == 0
-            #    # 停牌
-            #    if self.cur_market['vol'].loc[code]==0:
-            #        #self.log_warning('target amount sus----code: %s'%(code))
-            #        inmarket = False
             except:
                 # 没有找到code不发生交易
                 #self.log_error('target amount 404----code: %s'%(code))
@@ -290,6 +326,8 @@ class World():
             if code not in trader.weight.index:
                 self.sell(code, price_type=trader.price)
         # 在code_list中的补齐至amount
+        sell_list = []
+        buy_list = []
         for code, w in trader.weight.items():
             amount = w*net
             # 如果不在市场中，则卖出999
@@ -299,9 +337,14 @@ class World():
             except:
                 delta = -999 
             if delta <= 0:
-                self.sell(code, -delta, trader.price)
+                sell_list.append((code, -delta))
             else:
-                self.buy(code, delta, trader.price)
+                buy_list.append((code, delta))
+        # 先卖后买
+        for task in sell_list:
+            self.sell(task[0], task[1], trader.price)
+        for task in buy_list:
+            self.buy(task[0], task[1], trader.price)
     # 买入持有固定时间
     def trade_buyhold(self, code, vol, holdtime):
         trader = Trader('buyhold_trader')
@@ -327,9 +370,6 @@ class World():
     def trade_buystop(self, code, amount):
         pass
 
-    # 初始化（定义变量等）
-    def init(self):
-        pass
     # 交易员
     def runtrader(self):
         # 执行全部queue_trader中trader
@@ -351,34 +391,21 @@ class World():
     # 执行订单部分
 #    @staticmethod
     def rounding(self, vol, code):
-        #判断是否要round
-        if not self.is_round:
-            return vol
         # 获取order.code 的类型
         try:
             code_type = self.type_dic[code]
         except:
             code_type = self.type_dic['all_code']
-        # 可转债最小交易单位为10张
-        if code_type == 'convertible':
-            return vol - vol%10
-        # 可转债拆单，最小成交为30张
-        elif code_type == 'convertible_split':
-            if vol <= 30:
-                return 0
-            return vol - vol%10
-        elif code_type == 'stock':
-            return vol - vol%100
-        elif code_type == 'option':
-            try:
-                code_unit = self.unit_dic[code]
-            except:
-                code_unit = self.unit_dic['other']
-                print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
-            unit = code_unit
-            return vol - vol%unit
-        elif code_type == 'int_vol':
-            return vol//1
+        # 订单取整
+        try:
+            code_unit = self.unit_dic[code_type]
+        except:
+            code_unit = self.unit_dic['other']
+            print('注意！{}的合约乘数未知，默认是{}'.format((code, code_unit)))
+        if code_unit < 1e-5:
+            return vol
+        else:
+            return vol - vol%code_unit
         
     # 接收订单对象执行
     def excute(self, order):
@@ -546,6 +573,9 @@ class World():
     def dividend(self):
         pass
 
+    # 初始化
+    def init(self):
+        pass
     # 策略
     def strategy(self):
         pass
