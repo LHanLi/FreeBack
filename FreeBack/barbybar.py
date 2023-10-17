@@ -256,7 +256,7 @@ class World():
                 vol = self.cur_hold_vol[code]
             except:
                 vol = 0
-            order = Order('Sell', code, -vol, price_type, self.unique)
+            order = Order('Sell', code, vol, price_type, self.unique)
             self.unique += 1
             self.sub_order(order)
         else:
