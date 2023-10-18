@@ -333,7 +333,7 @@ class Post():
         # 净值与基准
             line, = ax.plot(self.net, c='C0', label='策略')
             lines.append(line)
-            if type(self.benchmark) != type(None):
+            if type(other_net) != type(None):
                 # benchmark 匹配回测时间段, 基准从0开始
                 other_net = other_net.loc[self.net.index[0]:self.net.index[-1]].copy()
                 if is_twinx:
