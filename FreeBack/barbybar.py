@@ -32,6 +32,7 @@ class Trader():
     target_amount = {}
     # type: batch_trader 按照目标标的等权持有
     weight = None
+    ifall = None
     # type: buyhold_trader
     code = None
     vol = None
@@ -310,9 +311,11 @@ class World():
         for code in buy_vol.keys():
             self.buy(code, buy_vol[code], trader.price)
     # 等权/weight加权持有目标标的
-    def trade_batch(self, weight, price='open'):
+    def trade_batch(self, weight, price='open', normal=False, ifall=True):
         trader = Trader('batch_trader', price)
-        weight = weight/weight.sum()
+        trader.ifall = ifall
+        if normal:
+            weight = weight/weight.sum()
         trader.weight = weight
         self.queue_trader.put(trader)
     def runtrade_batch(self, trader):
@@ -321,10 +324,11 @@ class World():
         ## 平均每标的的持有金额
         #amount = net/len(trader.code_list)
         # 提交订单
-        # 不在code_list中的直接清仓
-        for code in self.cur_hold_vol.index:
-            if code not in trader.weight.index:
-                self.sell(code, price_type=trader.price)
+        if trader.ifall:
+            # 不在code_list中的直接清仓
+            for code in self.cur_hold_vol.index:
+                if code not in trader.weight.index:
+                    self.sell(code, price_type=trader.price)
         # 在code_list中的补齐至amount
         sell_list = []
         buy_list = []
