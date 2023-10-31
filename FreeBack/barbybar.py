@@ -204,7 +204,7 @@ class World():
         # 按照最后一个bar的收盘价计算价值
         # 将剔除持仓，lost_amount换为现金 
         for code in name_delist:
-            price = self.market['close'].loc[:,code,:].iloc[-1]
+            price = self.market['close'].loc[:self.cur_bar,code,:].iloc[-1]
             lost_amount = price * self.cur_hold_vol[code]
             self.update_hold(code, 0)
             self.update_cash(self.cur_cash+lost_amount)
