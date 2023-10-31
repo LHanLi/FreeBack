@@ -230,14 +230,15 @@ class World():
                 vol = self.cur_hold_vol[code]
             except:
                 vol = 0
+            # 当前现金可以交易张数
             tradevol = self.cur_cash/self.cur_market.loc[code]['close']
             if vol < 0:
-                self.unique += 1
                 order = Order('Buy', code, -tradevol, price_type, self.unique)
+                self.unique += 1
                 self.sub_order(order)
             else:
-                self.unique += 1
                 order = Order('Buy', code, tradevol, price_type, self.unique)
+                self.unique += 1
                 self.sub_order(order)
         else:
             # vol为正表示做多 为负表示做空
@@ -641,9 +642,10 @@ class World():
             self.update_net()
 
             # 交易员下单
+            self.log('trader sub order')
             self.runtrader()
         # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
-            self.log('excute yesterbar order')
+            self.log('excute yesterbar and trader order')
             while not self.queue_order.empty():
                 # 接收订单
                 order = self.queue_order.get()
