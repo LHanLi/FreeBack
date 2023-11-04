@@ -168,7 +168,9 @@ def plot_thermal(series_returns):
 # 传入barbybar运行完毕的world对象
 class Post():
     #
-    def __init__(self, world, benchmark=None):
+    def __init__(self, world, benchmark=None, stratname='策略'):
+        # 策略名
+        self.stratname = stratname
         # 无风险利率
         self.rf = 0.03
         # 净值曲线
@@ -258,7 +260,7 @@ class Post():
             round(100*self.return_annual,2), round(self.sharpe,2), 
             round(100*max(self.drawdown),2)), transform=ax.transAxes)
         # 净值与基准
-            ax.plot(self.net, c='C0', label='策略')
+            ax.plot(self.net, c='C0', label=self.stratname)
             if type(self.benchmark) != type(None):
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
