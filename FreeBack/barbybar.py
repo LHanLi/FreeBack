@@ -106,8 +106,9 @@ class World():
     # queue_order 订单队列（每个bar开始前检查策略在上一个bar发出的订单，并且执行）
         self.queue_order = queue.Queue()
     # 交易员列表，策略可以像列表中添加交易员，一个交易员对应一个交易员函数，如果交易执行完毕则
-    # 交易员离开队列
-        self.queue_trader = queue.Queue()
+    # 交易员栈，交易员执行顺序是先进后出，保证先提交的交易员所要提交的订单先执行
+        #self.queue_trader = queue.Queue()
+        self.stack_trader = []
     # df_excute 订单执行记录（所有被执行订单会被记录到df_excute中）
         # columns:
         # 日期(订单执行），代码，买卖类型，执行价，发生数量，
@@ -176,7 +177,8 @@ class World():
         self.queue_order.put(order)
     # 提交trader函数
     def sub_trader(self, trader):
-        self.queue_trader.put(trader)
+        #self.queue_trader.put(trader)
+        self.stack_trader.append(trader)
     # excute调用
     # 更新订单执行记录函数
     def update_order(self, order_id, excute_log):
@@ -271,7 +273,8 @@ class World():
     def trade_amount(self, target_amount, price='open'):
         trader = Trader('amount_trader', price)
         trader.target_amount = target_amount
-        self.queue_trader.put(trader)
+        #self.queue_trader.put(trader)
+        self.sub_trader(trader)
     def runtrade_amount(self, trader):
         target_amount = trader.target_amount
         # 交易计划 index：code  amount：目标仓位
@@ -318,7 +321,8 @@ class World():
         if normal:
             weight = weight/weight.sum()
         trader.weight = weight
-        self.queue_trader.put(trader)
+        #self.queue_trader.put(trader)
+        self.sub_trader(trader)
     def runtrade_batch(self, trader):
         # 按照执行价格计算的总资产
         net = (self.cur_hold_vol*self.cur_market[trader.price]).sum() + self.cur_cash
@@ -356,7 +360,8 @@ class World():
         trader.code = code
         trader.vol = vol
         trader.holdtime =holdtime
-        self.queue_trader.put(trader)
+        #self.queue_trader.put(trader)
+        self.sub_trader(trader)
     def runtrade_buyhold(self, trader):
         # 如果还没有订单编号（未执行），则执行买单
         if  trader.order_id == None:
@@ -377,10 +382,25 @@ class World():
 
     # 交易员
     def runtrader(self):
-        # 执行全部queue_trader中trader
+        ## 执行全部queue_trader中trader
+        #savetrader = []
+        #while not self.queue_trader.empty():
+        #    trader = self.queue_trader.get()
+        #    if trader.type == 'amount_trader':
+        #        self.runtrade_amount(trader)
+        #    elif trader.type == 'batch_trader':
+        #        self.runtrade_batch(trader)
+        #    elif trader.type == 'buyhold_trader':
+        #        if self.runtrade_buyhold(trader):
+        #            savetrader.append(trader)
+        #    else:
+        #        pass
+        #for i in savetrader:
+        #    self.queue_trader.put(i)
+        # 执行全部stack_trader中的trader
         savetrader = []
-        while not self.queue_trader.empty():
-            trader = self.queue_trader.get()
+        while len(self.stack_trader)!=0:
+            trader = self.stack_trader.pop()
             if trader.type == 'amount_trader':
                 self.runtrade_amount(trader)
             elif trader.type == 'batch_trader':
@@ -391,8 +411,7 @@ class World():
             else:
                 pass
         for i in savetrader:
-            self.queue_trader.put(i)
-
+            self.stack_trader.append(i)
     # 执行订单部分
 #    @staticmethod
     def rounding(self, vol, code):
