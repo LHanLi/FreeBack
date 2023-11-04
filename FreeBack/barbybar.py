@@ -216,13 +216,13 @@ class World():
     # 基础订单函数
     # 买- == 卖+
     # 卖- == 买+
-    def buy(self, code = None, vol = None, price_type = 'open'):
+    def buy(self, code = None, vol = None, price = 'open'):
         # 无参数时默认平仓做空品种
         if code == None:
             for code,vol in self.cur_hold_vol.items():
                 if vol < 0:
                     self.unique += 1
-                    order = Order('Buy', code, -vol, price_type, self.unique)
+                    order = Order('Buy', code, -vol, price, self.unique)
                     self.sub_order(order)
                 else:
                     return
@@ -235,23 +235,23 @@ class World():
             # 当前现金可以交易张数
             tradevol = self.cur_cash/self.cur_market.loc[code]['close']
             if vol < 0:
-                order = Order('Buy', code, -tradevol, price_type, self.unique)
+                order = Order('Buy', code, -tradevol, price, self.unique)
                 self.unique += 1
                 self.sub_order(order)
             else:
-                order = Order('Buy', code, tradevol, price_type, self.unique)
+                order = Order('Buy', code, tradevol, price, self.unique)
                 self.unique += 1
                 self.sub_order(order)
         else:
             # vol为正表示做多 为负表示做空
-            order = Order('Buy', code, vol, price_type, self.unique)
+            order = Order('Buy', code, vol, price, self.unique)
             self.unique += 1
             self.sub_order(order)
-    def sell(self, code = None, vol = None, price_type = 'open'):
+    def sell(self, code = None, vol = None, price = 'open'):
         # 无参数时默认全部清仓
         if code == None:
             for code,vol in self.cur_hold_vol.items():
-                order = Order('Sell', code, vol, price_type, self.unique)
+                order = Order('Sell', code, vol, price, self.unique)
                 self.unique += 1
                 self.sub_order(order)
         # 无委托量时默认清仓/平仓该code
@@ -260,11 +260,11 @@ class World():
                 vol = self.cur_hold_vol[code]
             except:
                 vol = 0
-            order = Order('Sell', code, vol, price_type, self.unique)
+            order = Order('Sell', code, vol, price, self.unique)
             self.unique += 1
             self.sub_order(order)
         else:
-            order = Order('Sell', code, vol, price_type, self.unique)
+            order = Order('Sell', code, vol, price, self.unique)
             self.unique += 1
             self.sub_order(order)
 
@@ -496,11 +496,15 @@ class World():
                 # 当前现金cur最大买入量
                 max_vol0 = self.cur_cash/price
                 if self.cur_market.loc[order.code]['low'] <= price:
-                    # 现金限制最大成交量
+                    # 现金限制最大成交量(做空也是一倍保证金限制)
                     if max_vol0 <= max_vol1:
-                        if order.vol > max_vol0:
-                            vol = self.rounding(max_vol0, order.code)
-                            stat = 'not enough cash'
+                        if abs(order.vol) > max_vol0:
+                            if order.vol>0:
+                                vol = self.rounding(max_vol0, order.code)
+                                stat = 'not enough cash'
+                            else:
+                                vol = -self.rounding(max_vol0, order.code)
+                                stat = 'not enough deposit'
                         else:
                             vol = self.rounding(order.vol, order.code)
                             stat = 'normal'
@@ -523,18 +527,15 @@ class World():
                 except:
                     max_vol2 = 0
                 if self.cur_market.loc[order.code]['high'] >= price:
-                    # 最大持仓数量限制
-                    if max_vol2 <= max_vol1:
-                        #if order.vol > max_vol2:
-                        #    # 可以全部卖出
-                        #    vol = max_vol2
-                        #    stat = 'not enough hold'
-                        #else:
-                        #    vol = self.rounding(order.vol, order.code)
-                        #    stat = 'normal'
-                        vol = self.rounding(order.vol, order.code)
-                        stat = 'normal'
-
+                    # 当前持仓数量限制(当持仓为负时也使用此函数平仓卖出)
+                    if abs(max_vol2) <= max_vol1:
+                        if order.vol > abs(max_vol2):
+                            # 可以全部卖出
+                            vol = max_vol2
+                            stat = 'not enough hold'
+                        else:
+                            vol = self.rounding(order.vol, order.code)
+                            stat = 'normal'
                     # 当前bar最大成交量限制
                     else:
                         if order.vol > max_vol1:
