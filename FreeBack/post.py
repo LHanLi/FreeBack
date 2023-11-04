@@ -202,7 +202,7 @@ class Post():
         # 交割单
         self.excute = world.df_excute.reset_index().set_index(['date', 'code', 'unique'])
         # 换手率
-        occurance_amount = self.excute['occurance_amount'].groupby('date').sum()
+        occurance_amount = abs(self.excute['occurance_amount']).groupby('date').sum()
         #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
         turnover = (occurance_amount/world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
@@ -281,78 +281,6 @@ class Post():
             ax.set_ylabel('累计净值')
             ax.set_xlabel('日期')
             ax2.set_ylabel('回撤 (%)')
-            ax.set_xlim(self.net.index[0], self.net.index[-1])
-            plt.gcf().autofmt_xdate()
-        if type(filename) == type(None):
-            plt.savefig('pnl.png')
-        else:
-            plt.savefig(filename)
-        plt.show()
-# 净值对比
-    def pnl_constrast(self, other_net=None, timerange=None, filename=None, is_twinx=False):
-        lines = []
-        plt, fig, ax = matplot()
-        # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
-        if type(timerange) != type(None):
-            # 时间段内净值与基准
-            net = self.net.loc[timerange[0]:timerange[1]]
-            returns = self.returns.loc[timerange[0]:timerange[1]]
-            # 计算夏普
-            years = (pd.to_datetime(timerange[1])-pd.to_datetime(timerange[0])).days/365
-            return_annual = (net[-1]/net[0])**(1/years)-1
-            std_annual = returns.std()*np.sqrt(250)
-            sharpe = (return_annual - self.rf)/std_annual
-            # 回撤
-            a = np.maximum.accumulate(net)
-            drawdown = (a-net)/a 
-            ax.text(0.7, 0.05, '年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%\n'.format(
-                round(100*return_annual,2), round(sharpe,2), 
-                    round(100*max(drawdown),2)), transform=ax.transAxes)
-            line, = ax.plot(net/net[0], c='C0', label='策略')
-            lines.append(line)
-            if type(other_net) != type(None):
-                other_net = other_net.loc[timerange[0]:timerange[1]].copy()
-                if is_twinx:
-                    ax2 = ax.twinx()
-                    line, = ax2.plot(other_net.iloc[:, 0], 
-                            c='C4', label=other_net.columns[0])
-                    lines.append(line)
-                else:
-                    other_net.iloc[0] = 0
-                    colors_list = ['C4','C5','C6','C7']
-                    for i in range(len(other_net.columns)):
-                        line, = ax.plot((other_net[other_net.columns[i]]+1).cumprod(), 
-                                c=colors_list[i], label=other_net.columns[i])
-                        lines.append(line)
-            plt.legend(handles=lines, loc='upper left')
-            ax.set_xlim(returns.index[0], returns.index[-1])
-            plt.gcf().autofmt_xdate()
-        else: 
-    #评价指标
-            ax.text(0.7,0.05,'年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%\n'.format(
-            round(100*self.return_annual,2), round(self.sharpe,2), 
-            round(100*max(self.drawdown),2)), transform=ax.transAxes)
-        # 净值与基准
-            line, = ax.plot(self.net, c='C0', label='策略')
-            lines.append(line)
-            if type(other_net) != type(None):
-                # benchmark 匹配回测时间段, 基准从0开始
-                other_net = other_net.loc[self.net.index[0]:self.net.index[-1]].copy()
-                if is_twinx:
-                    ax2 = ax.twinx()
-                    line, = ax2.plot(other_net.iloc[:, 0], 
-                            c='C4', label=other_net.columns[0])
-                    lines.append(line)
-                else:
-                    other_net.loc[self.net.index[0]] = 0
-                    # colors of benchmark
-                    colors_list = ['C4','C5','C6','C7']
-                    for i in range(len(other_net.columns)):
-                        line, = ax.plot((other_net[other_net.columns[i]]+1).cumprod(),  c=colors_list[i], label=other_net.columns[i])
-                        lines.append(line)
-            plt.legend(handles=lines, loc='upper left')
-            ax.set_ylabel('累计净值')
-            ax.set_xlabel('日期')
             ax.set_xlim(self.net.index[0], self.net.index[-1])
             plt.gcf().autofmt_xdate()
         if type(filename) == type(None):
