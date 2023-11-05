@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import datetime
+import statsmodels.api as sm
 
 # matplot绘图
 def matplot(r=1, c=1, sharex=False, sharey=False, w=8, d=5):
@@ -167,7 +168,7 @@ def plot_thermal(series_returns):
 
 # 传入barbybar运行完毕的world对象
 class Post():
-    #
+    # benchmark为收益率（非对数收益率）
     def __init__(self, world, benchmark=None, stratname='策略'):
         # 策略名
         self.stratname = stratname
@@ -182,13 +183,13 @@ class Post():
         self.benchmark = benchmark
         # 评价指标
         # 年化收益率
-        years = (self.net.index[-1]-self.net.index[0]).days/365
-        return_total = self.net[-1]/self.net[0]
-        self.return_annual = return_total**(1/years)-1
+        self.years = (self.net.index[-1]-self.net.index[0]).days/365
+        self.return_total = self.net[-1]/self.net[0]
+        self.return_annual = self.return_total**(1/self.years)-1
         # 年化波动率 shrpe
         #self.std_annual = np.std(np.log(self.returns+1))*np.sqrt(250)
-        self.std_annual = np.std(self.returns)*np.sqrt(250)
-        self.sharpe = (self.return_annual - self.rf)/self.std_annual
+        self.sigma = np.exp(self.lr.std())-1
+        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
         # 回撤
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
@@ -211,7 +212,96 @@ class Post():
             benchmark = pd.DataFrame(index = world.series_net.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
-        self.excess_lr = self.lr  - np.log(benchmark[benchmark.columns[0]]+1)
+        self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
+# 策略详细评价指标
+    def details(self):
+        from plottable import ColumnDefinition, ColDef, Table
+        from matplotlib.colors import LinearSegmentedColormap
+
+        win = self.lr[self.lr>0]
+        loss = self.lr[self.lr<0]
+        excess_total = (np.exp(self.excess_lr.sum())-1)
+        excess_annual = excess_total**(1/self.years)-1
+        excesswin = self.excess_lr[self.excess_lr>0]
+        excessloss = self.excess_lr[self.excess_lr<0]
+        # 下行波动率
+        sigma_down = np.exp((self.lr-self.lr.mean()).apply(lambda x: min(x,0)).std())-1
+        # 跟踪误差
+        sigma_alpha = np.exp(np.std(self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)))-1
+        # 超额回撤
+        excess_net = np.exp(self.excess_lr.cumsum())
+        a = np.maximum.accumulate(excess_net)
+        self.excess_drawdown = (a-excess_net)/a
+        # CAPM
+        y = self.returns.fillna(0)
+        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
+        x = sm.add_constant(x)
+        model = sm.OLS(y, x).fit()
+        #model.summary()
+
+        col0 = pd.DataFrame(columns=['col0'])
+        col0.loc[0] = '运行时间（年）'
+        col0.loc[1] = round(self.years,1)
+        col0.loc[2] = '累计收益（%）'
+        col0.loc[3] = round((self.return_total-1)*100,1)
+        col0.loc[4] = '年化收益率（%）'
+        col0.loc[5] = round(self.return_annual*100,1)
+        col0.loc[6] = '累计超额收益（%）'
+        col0.loc[7] = round((excess_total-1)*100,1)
+        col1 = pd.DataFrame(columns=['col1'])
+        col1.loc[0] = '累计超额收益率（%）'
+        col1.loc[1] = round(excess_annual*100,1)
+        col1.loc[2] = '日胜率（%）'
+        col1.loc[3] = 100*len(win)/(len(win)+len(loss)) 
+        col1.loc[4] = '日盈亏比'
+        col1.loc[5] = win.mean()/abs(loss.mean())
+        col1.loc[6] = '亏损日平均亏损（%）'
+        col1.loc[7] = abs(loss.mean())*100
+        col1.loc[8] = '超额日胜率（%）'
+        col1.loc[9] = 100*len(excesswin)/(len(excesswin)+len(excessloss))
+        col2 = pd.DataFrame(columns=['col2'])
+        col2.loc[0] = '最大回撤（%）'
+        col2.loc[1] = round(max(self.drawdown)*100, 1)
+        col2.loc[2] = '超额回撤（%）'
+        col2.loc[3] = round(max(self.excess_drawdown)*100, 1)
+        col2.loc[4] = '跟踪误差（%）'
+        col2.loc[5] = round(sigma_alpha*100, 1)
+        col2.loc[6] = '波动率（%）'
+        col2.loc[7] = round(self.sigma*np.sqrt(250)*100, 1)
+        col2.loc[8] = '下行波动率（%）'
+        col2.loc[9] = round(sigma_down*100, 1)
+        col3 = pd.DataFrame(columns=['col3'])
+        col3.loc[0] = '夏普比率'
+        col3.loc[1] = self.sharpe
+        col3.loc[2] = '卡玛比率'
+        col3.loc[3] = self.return_annual/max(self.drawdown)
+        col3.loc[4] = 'beta系数'
+        col3.loc[5] = model.params[self.benchmark.columns[0]]
+        col3.loc[6] = 'alpha（%）'
+        col3.loc[7] = model.params['const']*250*100
+        col3.loc[8] = '信息比率'
+        col3.loc[9] = excess_annual/(sigma_alpha*100)
+        df_details = pd.concat([col0, col1], axis=1)
+
+        plt, fig, ax = matplot()
+        column_definitions = [ColumnDefinition(name='col0', group="收益能力"), \
+                              ColumnDefinition(name='col1', group="收益能力"), \
+                            ColumnDefinition(name="col2", group='风险水平')] +\
+                            [ColDef("index", title="", width=1.5, textprops={"ha":"right"})]
+        tab = Table(df_details, row_dividers=False, col_label_divider=False, 
+                    column_definitions=column_definitions,
+                    odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
+                    textprops={"ha": "center"})
+
+        # 设置列标题文字和背景颜色(隐藏表头名)
+        tab.col_label_row.set_facecolor("white")
+        tab.col_label_row.set_fontcolor("white")
+        # 设置行标题文字和背景颜色
+        tab.columns["index"].set_facecolor("white")
+        tab.columns["index"].set_fontcolor("white")
+        tab.columns["index"].set_linewidth(0)
+        plt.savefig('details.png')
+        plt.show()
 # 净值曲线
     def pnl(self, timerange=None, detail=False, filename=None, log=False, excess=True):
         plt, fig, ax = matplot()
@@ -301,14 +391,17 @@ class Post():
         ax.set_ylabel('滚动时点向前回溯收益 (%)')
         plt.gcf().autofmt_xdate()
         plt.savefig('rolling_return.png')
+        plt.show()
 # 月度收益
     def pnl_monthly(self):
         plt,fig,ax = plot_thermal(self.lr)
         plt.savefig('pnl_monthly.png')
+        plt.show()
 # 月度超额收益
     def pnl_excess_monthly(self):
         plt,fig,ax = plot_thermal(self.excess_lr)
         plt.savefig('pnl_excess_monthly.png')
+        plt.show()
 # 交易分析
     def trade(self):
         self.CashFlow = self.excute.apply(lambda x: x['occurance_amount'] - x['comm'] if x['BuyOrSell']=='Sell' else -x['occurance_amount'] - x['comm'], axis=1)
@@ -351,9 +444,11 @@ class Post():
         ax.legend()
         plt.gcf().autofmt_xdate()
         plt.savefig('trade.png')
+        plt.show()
     def trade_monthly(self):
         plt,fig,ax = month_thermal(self.month_winrate, 0.5)
         plt.savefig('trade_monthly.png') 
+        plt.show()
 # 仓位分析
     def position(self):
         plt, fig, ax = matplot()
@@ -375,4 +470,5 @@ class Post():
         ax2.legend(loc = 'upper right')
         plt.gcf().autofmt_xdate()
         plt.savefig('position.png')
+        plt.show()
 
