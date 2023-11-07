@@ -222,7 +222,7 @@ class Post():
 
         win = self.lr[self.lr>0]
         loss = self.lr[self.lr<0]
-        excess_total = (np.exp(self.excess_lr.sum())-1)
+        excess_total = np.exp(self.excess_lr.sum())
         excess_annual = excess_total**(1/self.years)-1
         excesswin = self.excess_lr[self.excess_lr>0]
         excessloss = self.excess_lr[self.excess_lr<0]
@@ -256,8 +256,8 @@ class Post():
         col0.loc[3] = len(win)
         col0.loc[4] = '超额次数（日）'
         col0.loc[5] = len(excesswin)
-        col0.loc[6] = '' 
-        col0.loc[7] = '' 
+        col0.loc[6] = '空仓次数（日）' 
+        col0.loc[7] = len(self.net)-len(win)-len(loss) 
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '年化收益率（%）'
         col1.loc[1] = round(self.return_annual*100,1)
@@ -275,8 +275,8 @@ class Post():
                                 len(excessloss)),1) 
         col2.loc[4] = '日盈亏比'
         col2.loc[5] = round(win.mean()/abs(loss.mean()),1) 
-        col2.loc[6] = '亏损日平均亏损（%）'
-        col2.loc[7] = round(abs(loss.mean())*100,1) 
+        col2.loc[6] = '亏损日平均亏损（万）'
+        col2.loc[7] = round(abs(loss.mean())*10000,1) 
         col3 = pd.DataFrame(columns=['col3'])
         col3.loc[0] = '最大回撤（%）'
         col3.loc[1] = round(max(self.drawdown)*100, 1)
@@ -302,12 +302,13 @@ class Post():
         col5.loc[3] = round(self.sortino,2)
         col5.loc[4] = '卡玛比率'
         col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
-        col5.loc[6] = '' 
-        col5.loc[7] = '' 
+        col5.loc[6] = '无风险收益率（%）' 
+        col5.loc[7] = self.rf*100 
         col6 = pd.DataFrame(columns=['col6'])
         col6.loc[0] = '詹森指数（alpha）'
+        #col6.loc[0] = '詹森指数'
         col6.loc[1] = round(self.alpha*250*100,1) 
-        col6.loc[2] = '特雷诺指数' 
+        col6.loc[2] = '特雷诺指数'  # 单位beta的超额收益 
         col6.loc[3] =  round(self.treynor, 2)
         col6.loc[4] = '信息比率'   # 超额收益的夏普
         col6.loc[5] = round(self.alpha*np.sqrt(250)/sigma_alpha,2) 
