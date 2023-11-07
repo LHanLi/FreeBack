@@ -180,7 +180,13 @@ class Post():
         self.lr = np.log(self.returns + 1)
         self.returns.index.name = 'date'
         # 基准
-        self.benchmark = benchmark
+        if type(benchmark) == type(None):
+            benchmark = pd.DataFrame(index = world.series_net.index)
+            benchmark['zero'] = 0
+            self.benchmark = benchmark
+        self.benchmark = benchmark.loc[self.returns.index]
+        self.sigma_benchmark = np.exp(np.log(self.benchmark[\
+            self.benchmark.columns[0]]+1).std())-1
         # 评价指标
         # 年化收益率
         self.years = (self.net.index[-1]-self.net.index[0]).days/365
@@ -208,10 +214,6 @@ class Post():
         turnover = (occurance_amount/world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
         # 超额收益 默认第一个benchmark
-        if type(benchmark) == type(None):
-            benchmark = pd.DataFrame(index = world.series_net.index)
-            benchmark['zero'] = 0
-            self.benchmark = benchmark
         self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
 # 策略详细评价指标
     def details(self):
@@ -225,74 +227,119 @@ class Post():
         excesswin = self.excess_lr[self.excess_lr>0]
         excessloss = self.excess_lr[self.excess_lr<0]
         # 下行波动率
-        sigma_down = np.exp((self.lr-self.lr.mean()).apply(lambda x: min(x,0)).std())-1
+        self.sigma_down = np.exp((self.lr-self.lr.mean()).apply(lambda x: min(x,0)).std())-1
         # 跟踪误差
         sigma_alpha = np.exp(np.std(self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)))-1
         # 超额回撤
-        excess_net = np.exp(self.excess_lr.cumsum())
+        excess_net = np.exp(self.excess_lr.fillna(0).cumsum())
         a = np.maximum.accumulate(excess_net)
         self.excess_drawdown = (a-excess_net)/a
-        # CAPM
+        # CAPM (无风险收益为0)
         y = self.returns.fillna(0)
         x = self.benchmark[self.benchmark.columns[0]].fillna(0)
         x = sm.add_constant(x)
         model = sm.OLS(y, x).fit()
+        # 市场风险暴露
+        self.beta = model.params[self.benchmark.columns[0]]
+        # 市场波动无法解释的截距项
+        self.alpha = model.params['const'] 
         #model.summary()
+        # 索提诺比率   单位下行风险的超额收益
+        self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
+        # 特雷诺指数  单位beta的超额收益
+        self.treynor  = (self.return_annual - self.rf)/self.beta
 
         col0 = pd.DataFrame(columns=['col0'])
-        col0.loc[0] = '运行时间（年）'
-        col0.loc[1] = round(self.years,1)
-        col0.loc[2] = '累计收益（%）'
-        col0.loc[3] = round((self.return_total-1)*100,1)
-        col0.loc[4] = '年化收益率（%）'
-        col0.loc[5] = round(self.return_annual*100,1)
-        col0.loc[6] = '累计超额收益（%）'
-        col0.loc[7] = round((excess_total-1)*100,1)
+        col0.loc[0] = '运行时间（年, 日）'
+        col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
+        col0.loc[2] = '盈利次数（日）'
+        col0.loc[3] = len(win)
+        col0.loc[4] = '超额次数（日）'
+        col0.loc[5] = len(excesswin)
+        col0.loc[6] = '' 
+        col0.loc[7] = '' 
         col1 = pd.DataFrame(columns=['col1'])
-        col1.loc[0] = '累计超额收益率（%）'
-        col1.loc[1] = round(excess_annual*100,1)
-        col1.loc[2] = '日胜率（%）'
-        col1.loc[3] = 100*len(win)/(len(win)+len(loss)) 
-        col1.loc[4] = '日盈亏比'
-        col1.loc[5] = win.mean()/abs(loss.mean())
-        col1.loc[6] = '亏损日平均亏损（%）'
-        col1.loc[7] = abs(loss.mean())*100
-        col1.loc[8] = '超额日胜率（%）'
-        col1.loc[9] = 100*len(excesswin)/(len(excesswin)+len(excessloss))
+        col1.loc[0] = '年化收益率（%）'
+        col1.loc[1] = round(self.return_annual*100,1)
+        col1.loc[2] = '年化超额收益率（%）'
+        col1.loc[3] = round(excess_annual*100,1)
+        col1.loc[4] = '累计收益（%）'
+        col1.loc[5] = round((self.return_total-1)*100,1)
+        col1.loc[6] = '累计超额收益（%）'
+        col1.loc[7] = round((excess_total-1)*100,1)
         col2 = pd.DataFrame(columns=['col2'])
-        col2.loc[0] = '最大回撤（%）'
-        col2.loc[1] = round(max(self.drawdown)*100, 1)
-        col2.loc[2] = '超额回撤（%）'
-        col2.loc[3] = round(max(self.excess_drawdown)*100, 1)
-        col2.loc[4] = '跟踪误差（%）'
-        col2.loc[5] = round(sigma_alpha*100, 1)
-        col2.loc[6] = '波动率（%）'
-        col2.loc[7] = round(self.sigma*np.sqrt(250)*100, 1)
-        col2.loc[8] = '下行波动率（%）'
-        col2.loc[9] = round(sigma_down*100, 1)
+        col2.loc[0] = '日胜率（%）'
+        col2.loc[1] = round(100*len(win)/(len(win)+len(loss)),1) 
+        col2.loc[2] = '超额日胜率（%）'
+        col2.loc[3] = round(100*len(excesswin)/(len(excesswin)+\
+                                len(excessloss)),1) 
+        col2.loc[4] = '日盈亏比'
+        col2.loc[5] = round(win.mean()/abs(loss.mean()),1) 
+        col2.loc[6] = '亏损日平均亏损（%）'
+        col2.loc[7] = round(abs(loss.mean())*100,1) 
         col3 = pd.DataFrame(columns=['col3'])
-        col3.loc[0] = '夏普比率'
-        col3.loc[1] = self.sharpe
-        col3.loc[2] = '卡玛比率'
-        col3.loc[3] = self.return_annual/max(self.drawdown)
-        col3.loc[4] = 'beta系数'
-        col3.loc[5] = model.params[self.benchmark.columns[0]]
-        col3.loc[6] = 'alpha（%）'
-        col3.loc[7] = model.params['const']*250*100
-        col3.loc[8] = '信息比率'
-        col3.loc[9] = excess_annual/(sigma_alpha*100)
-        df_details = pd.concat([col0, col1], axis=1)
+        col3.loc[0] = '最大回撤（%）'
+        col3.loc[1] = round(max(self.drawdown)*100, 1)
+        col3.loc[2] = '超额最大回撤（%）'
+        col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
+        col3.loc[4] = '波动率（%）'
+        col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
+        col3.loc[6] = '基准波动率（%）'
+        col3.loc[7] = round(self.sigma_benchmark*np.sqrt(250)*100, 1)
+        col4 = pd.DataFrame(columns=['col4'])
+        col4.loc[0] = '下行波动率（%）'
+        col4.loc[1] = round(self.sigma_down*np.sqrt(250)*100, 1)
+        col4.loc[2] = 'beta系数'
+        col4.loc[3] = round(self.beta,2) 
+        col4.loc[4] = '跟踪误差（%）'
+        col4.loc[5] = round(sigma_alpha*100, 1)
+        col4.loc[6] = '' 
+        col4.loc[7] = '' 
+        col5 = pd.DataFrame(columns=['col5'])
+        col5.loc[0] = '夏普比率'
+        col5.loc[1] = round(self.sharpe,2)
+        col5.loc[2] = '索提诺比率' 
+        col5.loc[3] = round(self.sortino,2)
+        col5.loc[4] = '卡玛比率'
+        col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
+        col5.loc[6] = '' 
+        col5.loc[7] = '' 
+        col6 = pd.DataFrame(columns=['col6'])
+        col6.loc[0] = '詹森指数（alpha）'
+        col6.loc[1] = round(self.alpha*250*100,1) 
+        col6.loc[2] = '特雷诺指数' 
+        col6.loc[3] =  round(self.treynor, 2)
+        col6.loc[4] = '信息比率'   # 超额收益的夏普
+        col6.loc[5] = round(self.alpha*np.sqrt(250)/sigma_alpha,2) 
+        col6.loc[6] = '' 
+        col6.loc[7] = '' 
+        col7 = pd.DataFrame(columns=['col7'])
+        col7.loc[0] = 'Hurst指数' 
+        col7.loc[1] = '' 
+        col7.loc[2] = 'T-M模型' 
+        col7.loc[3] = '' 
+        col7.loc[4] = '' 
+        col7.loc[5] = '' 
+        col7.loc[6] = '' 
+        col7.loc[7] = '' 
+        df_details = pd.concat([col0, col1, col2, col3, \
+                col4, col5, col6, col7], axis=1)
 
-        plt, fig, ax = matplot()
+        plt, fig, ax = matplot(w=22)
         column_definitions = [ColumnDefinition(name='col0', group="收益能力"), \
                               ColumnDefinition(name='col1', group="收益能力"), \
-                            ColumnDefinition(name="col2", group='风险水平')] +\
+                            ColumnDefinition(name='col2', group='收益能力'), \
+                            ColumnDefinition(name='col3', group='风险水平'), \
+                            ColumnDefinition(name="col4", group='风险水平'), \
+                            ColumnDefinition(name="col5", group='风险调整'), \
+                            ColumnDefinition(name="col6", group='风险调整'),
+                            ColumnDefinition(name="col7", group='业绩持续性分析')] +\
                             [ColDef("index", title="", width=1.5, textprops={"ha":"right"})]
         tab = Table(df_details, row_dividers=False, col_label_divider=False, 
                     column_definitions=column_definitions,
                     odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
                     textprops={"ha": "center"})
-
+        #ax.set_xlim(2,5)
         # 设置列标题文字和背景颜色(隐藏表头名)
         tab.col_label_row.set_facecolor("white")
         tab.col_label_row.set_fontcolor("white")
