@@ -292,7 +292,7 @@ class Post():
         col4.loc[2] = 'beta系数'
         col4.loc[3] = round(self.beta,2) 
         col4.loc[4] = '跟踪误差（%）'
-        col4.loc[5] = round(sigma_alpha*100, 1)
+        col4.loc[5] = round(sigma_alpha*np.sqrt(250)*100, 1)
         col4.loc[6] = '' 
         col4.loc[7] = '' 
         col5 = pd.DataFrame(columns=['col5'])
