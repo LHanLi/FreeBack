@@ -274,7 +274,7 @@ class Post():
         col2.loc[3] = round(100*len(excesswin)/(len(excesswin)+\
                                 len(excessloss)),1) 
         col2.loc[4] = '日盈亏比'
-        col2.loc[5] = round(win.mean()/abs(loss.mean()),1) 
+        col2.loc[5] = round(win.mean()/abs(loss.mean()),2) 
         col2.loc[6] = '亏损日平均亏损（万）'
         col2.loc[7] = round(abs(loss.mean())*10000,1) 
         col3 = pd.DataFrame(columns=['col3'])
@@ -352,7 +352,7 @@ class Post():
         plt.show()
 # 净值曲线
     def pnl(self, timerange=None, detail=False, filename=None, log=False, excess=True):
-        plt, fig, ax = matplot()
+        plt, fig, ax = matplot(w=10)
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
             # 时间段内净值与基准
