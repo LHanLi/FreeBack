@@ -293,8 +293,8 @@ class Post():
         col4.loc[3] = round(self.beta,2) 
         col4.loc[4] = '跟踪误差（%）'
         col4.loc[5] = round(sigma_alpha*np.sqrt(250)*100, 1)
-        col4.loc[6] = '' 
-        col4.loc[7] = '' 
+        col4.loc[6] = '年化换手' 
+        col4.loc[7] = round(self.turnover,1)
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
         col5.loc[1] = round(self.sharpe,2)
