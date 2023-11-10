@@ -170,56 +170,62 @@ def plot_thermal(series_returns):
 class Post():
     # benchmark为收益率（非对数收益率）
     def __init__(self, world, benchmark=None, stratname='策略'):
+        # world
+        self.world = world
         # 策略名
         self.stratname = stratname
         # 无风险利率
         self.rf = 0.03
-        # 净值曲线
-        self.net = world.series_net/world.series_net.iloc[0]
-        self.returns = self.net/self.net.shift() - 1
-        self.lr = np.log(self.returns + 1)
-        self.returns.index.name = 'date'
         # 基准
         if type(benchmark) == type(None):
             benchmark = pd.DataFrame(index = world.series_net.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
-        self.benchmark = benchmark.loc[self.returns.index]
+        self.benchmark = benchmark.loc[world.series_net.index]
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
+
+        self.details()
+
+# 策略详细评价指标
+    def details(self):
+        from plottable import ColumnDefinition, ColDef, Table
+        from matplotlib.colors import LinearSegmentedColormap
+
+        # 净值曲线
+        self.net = self.world.series_net/self.world.series_net.iloc[0]
+        self.returns = self.net/self.net.shift() - 1
+        self.lr = np.log(self.returns + 1)
+        self.returns.index.name = 'date'
         # 评价指标
         # 年化收益率
         self.years = (self.net.index[-1]-self.net.index[0]).days/365
         self.return_total = self.net[-1]/self.net[0]
         self.return_annual = self.return_total**(1/self.years)-1
         # 年化波动率 shrpe
-        #self.std_annual = np.std(np.log(self.returns+1))*np.sqrt(250)
         self.sigma = np.exp(self.lr.std())-1
         self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
         # 回撤
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
         # 持仓标的
-        self.df_hold = world.df_hold
-        held = world.df_hold.reset_index().melt(id_vars=['date']).set_index(['date', 'code'])
-        held = held['value'] * world.market['close']
+        self.df_hold = self.world.df_hold
+        held = self.world.df_hold.reset_index().melt(id_vars=['date']).set_index(['date', 'code'])
+        held = held['value'] * self.world.market['close']
         self.held = held[(held != 0)&~np.isnan(held)]
         # 现金
-        self.cash = world.series_cash
+        self.cash = self.world.series_cash
         # 交割单
-        self.excute = world.df_excute.reset_index().set_index(['date', 'code', 'unique'])
+        self.excute = self.world.df_excute.reset_index().set_index(['date', 'code', 'unique'])
         # 换手率
         occurance_amount = abs(self.excute['occurance_amount']).groupby('date').sum()
         #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
-        turnover = (occurance_amount/world.series_net).fillna(0)
+        turnover = (occurance_amount/self.world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
         # 超额收益 默认第一个benchmark
         self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
-# 策略详细评价指标
-    def details(self):
-        from plottable import ColumnDefinition, ColDef, Table
-        from matplotlib.colors import LinearSegmentedColormap
-
+        
+        # details 表格
         win = self.lr[self.lr>0]
         loss = self.lr[self.lr<0]
         excess_total = np.exp(self.excess_lr.sum())
@@ -235,6 +241,11 @@ class Post():
         a = np.maximum.accumulate(excess_net)
         self.excess_drawdown = (a-excess_net)/a
         # CAPM (无风险收益为0)
+        y = self.returns.fillna(0)
+        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
+        x = sm.add_constant(x)
+        model = sm.OLS(y, x).fit()
+        # T-M 模型(无风险收益为0)
         y = self.returns.fillna(0)
         x = self.benchmark[self.benchmark.columns[0]].fillna(0)
         x = sm.add_constant(x)
@@ -429,17 +440,35 @@ class Post():
 # 滚动收益
     def rolling_return(self):
         plt, fig, ax = matplot()
-        ax.plot((self.net/self.net.shift(20)-1)*100, c='C0', label='month return')
+        ax.plot((self.net/self.net.shift(120)-1)*100, c='C0', label='滚动半年收益')
         #ax.plot((post0.net/post0.net.shift(60)-1)*4, c='C1', label='quarter return')
         #ax.plot((post0.net/post0.net.shift(120)-1)*2, c='C3', label='half year return')
         ax2 = ax.twinx()
-        ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='year return')
+        ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='滚动年度收益')
         ax.legend(loc='upper left')
         ax2.legend(loc='upper right')
-        ax.set_ylabel('滚动时点向前回溯收益 (%)')
+        ax.set_ylabel(' (%)')
+        ax2.set_ylabel('(%)')
+        ax.set_xlim(self.returns.index[0], self.returns.index[-1])
         plt.gcf().autofmt_xdate()
         plt.savefig('rolling_return.png')
         plt.show()
+# 滚动sharpe
+    def rolling_sharpe(self):
+        plt, fig, ax = matplot()
+        halfyearly_sharpe = (np.exp(self.lr.rolling(120).mean()*250)-1)/\
+            ((np.exp(self.lr.rolling(120).std())-1)*np.sqrt(250))
+        yearly_sharpe = (np.exp(self.lr.rolling(250).mean()*250)-1)/\
+            ((np.exp(self.lr.rolling(250).std())-1)*np.sqrt(250))
+        ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
+        ax2 = ax.twinx()
+        ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
+        ax.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+        ax.set_ylim(-3, 10)
+        ax.set_xlim(self.returns.index[0], self.returns.index[-1])
+        plt.gcf().autofmt_xdate()
+        plt.savefig('rolling_return.png')
 # 月度收益
     def pnl_monthly(self):
         plt,fig,ax = plot_thermal(self.lr)
