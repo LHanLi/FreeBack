@@ -181,7 +181,7 @@ class Post():
             benchmark = pd.DataFrame(index = world.series_net.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
-        self.benchmark = benchmark.loc[world.series_net.index]
+        self.benchmark = benchmark.loc[world.series_net.index].fillna(0)
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
 
@@ -468,11 +468,53 @@ class Post():
         ax.set_ylim(-3, 10)
         ax.set_xlim(self.returns.index[0], self.returns.index[-1])
         plt.gcf().autofmt_xdate()
-        plt.savefig('rolling_return.png')
+        plt.savefig('rolling_sharpe.png')
 # 月度收益
     def pnl_monthly(self):
         plt,fig,ax = plot_thermal(self.lr)
         plt.savefig('pnl_monthly.png')
+        plt.show()
+    def pnl_yearly(self):
+        lr = self.lr
+        lr.name = 'lr'
+        bench = np.log(self.benchmark[self.benchmark.columns[0]].fillna(0)+1)
+        bench.name = 'bench'
+        year = pd.Series(dict(zip(self.returns.index, self.returns.index.map(lambda x: x.year))))
+        year.name = 'year'
+        yearly_returns = pd.concat([year, lr, bench], axis=1)
+        yearly_returns = (np.exp(yearly_returns.groupby('year').sum())*100-100)
+
+        plt, fig, ax = matplot()
+
+        len_years = len(yearly_returns)
+        plot_x = range(len_years)
+        plot_index = yearly_returns.index
+        plot_height = yearly_returns['lr'].values
+        plot_height1 = yearly_returns['bench'].values
+
+        ax.bar([i-0.225  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
+        ax.bar([i+0.225  for i in plot_x], plot_height1, width=0.45, color='C4', label=self.benchmark.columns[0])
+
+        max_height = max(np.hstack([plot_height, plot_height1]))
+        min_height = min(np.hstack([plot_height, plot_height1]))
+        height = max_height-min_height
+        plt.ylim(min_height-0.1*height, max_height+0.1*height)
+
+        for x, contri in zip(plot_x, plot_height):
+            if contri>0:
+                plt.text(x-0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+            else:
+                plt.text(x-0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
+        for x, contri in zip(plot_x, plot_height1):
+            if contri>0:
+                plt.text(x+0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+            else:
+                plt.text(x+0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
+        plt.legend()
+        plt.title('年度收益')
+        plt.xticks(plot_x, labels=plot_index)
+        plt.ylabel('(%)')
+        plt.savefig('pnl_yearly.png')
         plt.show()
 # 月度超额收益
     def pnl_excess_monthly(self):
@@ -534,17 +576,16 @@ class Post():
         df_total = pd.concat([self.held.groupby('date').sum(), self.cash], axis=1).fillna(0)
         df_max = pd.concat([self.held.groupby('date').max(), self.cash], axis=1).fillna(0)
         df_count = pd.concat([self.held.groupby('date').count(), self.cash], axis=1).fillna(0)
-        #held_amount = self.df_hold.sum(axis=1)
-        #ax.plot(held_amount/(self.cash+held_amount), label='非现金仓位')
         ax.plot(df_total[0]/df_total.sum(axis=1), label='非现金仓位')
-        #ax.plot(self.held.groupby('date').max()/(self.cash+held_amount), label='第一大持仓仓位')
-        ax.plot(df_max[0]/df_total.sum(axis=1), label='第一大持仓仓位')
         ax.set_xlim(self.held.index[0][0], self.held.index[-1][0])
         ax.legend(loc = 'upper left')
         ax2 = ax.twinx()
         #ax2.plot(self.held.groupby('date').count(), c="C2", label='持有标的数量')
-        ax2.plot(df_count[0], c="C2", label='持有标的数量')
-        ax2.legend(loc = 'upper right')
+        # 如果不是单品种策略
+        if self.world.market.index[0][1] != 'onlyone':
+            ax.plot(df_max[0]/df_total.sum(axis=1), label='第一大持仓仓位')
+            ax2.plot(df_count[0], c="C2", label='持有标的数量')
+            ax2.legend(loc = 'upper right')
         plt.gcf().autofmt_xdate()
         plt.savefig('position.png')
         plt.show()
