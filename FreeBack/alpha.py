@@ -64,11 +64,11 @@ class Portfolio():
 # 当日收益率为当日收盘价相对昨日收盘价收益率*前一日持仓权重
 # 作弊模式    当日因子确定当日持仓 
 # df_market.pivot_table('close','date','code')
+# df_market.pivot_table('open','date','code').shift(-1)
 # 不开启作弊  当日因子确定明日持仓 使用开盘价结算 
 # df_market.pivot_table('open', 'date', 'code') 
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
-    #def __init__(self, factor, price, price_return, holdweight=None, cheat = True, comm=0.5):
     def __init__(self, factor, price, holdweight=None, cheat = True, comm=0.5, norm=True):
         self.comm = comm
         self.cheat = cheat
@@ -401,7 +401,7 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class EvalFactor():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0'):
+    def __init__(self, factor, price, periods=(1, 3, 5), factor_name = 'alpha0'):
         # 因子暴露标准化
         #factor_mean =  factor.groupby('date').mean()
         #factor_std = factor.groupby('date').std()
@@ -415,7 +415,7 @@ class EvalFactor():
         #factor = factor['norm']
         #factor = pd.DataFrame(factor.rename('factor'))
         # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['R2', 'IC', 'ICIR', 'annual returns', 'sharpe'])
+        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual returns', 'sharpe'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
@@ -441,12 +441,13 @@ class EvalFactor():
             IC_dict[period] = r
             IC = r.mean()
             ICIR = IC/r.std()
-            r2 = (r**2).mean()
+            absIC = (abs(r)).mean()
+            IC
             # 因子收益率(单位预测周期 1day)
             fr_dict[period] = beta/period
             fr = beta.mean()/period
             frIR = fr/beta.std()
-            record = {'R2':r2, 'IC':IC, 'ICIR':ICIR, 'annual returns':250*fr, \
+            record = {'absIC':absIC, 'IC':IC, 'ICIR':ICIR, 'annual returns':250*fr, \
                       'sharpe':np.sqrt(250)*frIR}
             result.loc[period] = record
         self.IC_dict = IC_dict
@@ -454,6 +455,7 @@ class EvalFactor():
         self.cross_dict = cross_dict
         self.gamma_dict = gamma_dict
         self.result = result
+        display(result)
         # 多周期平均IC序列
         #IC_series = IC_dict[periods[0]]
         #for period in periods[1:]:
@@ -487,7 +489,7 @@ class EvalFactor():
         ax2.legend(loc='upper right')
         plt.show()
 
-    # 截面因子与收益率
+    # 截面因子与收益率（散点图）
     def Cross_plot(self, date=None, period=1):
         plt, fig, ax = matplot()
 
