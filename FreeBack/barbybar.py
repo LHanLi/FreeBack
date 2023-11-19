@@ -333,7 +333,7 @@ class World():
             # 不在code_list中的直接清仓
             for code in self.cur_hold_vol.index:
                 if code not in trader.weight.index:
-                    self.sell(code, price_type=trader.price)
+                    self.sell(code, price=trader.price)
         # 在code_list中的补齐至amount
         sell_list = []
         buy_list = []
