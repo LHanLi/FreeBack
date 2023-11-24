@@ -69,7 +69,7 @@ class Portfolio():
 # df_market.pivot_table('open', 'date', 'code') 
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
-    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0, norm=True):
+    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0.5, norm=True):
         self.comm = comm
         self.cheat = cheat
         self.norm = norm
@@ -399,7 +399,7 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
     
 # 单因子评价  
 # 直接market_factor标准的market以及因子column名
-class EvalFactor():
+class Reg():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 3, 5), factor_name = 'alpha0'):
         # 因子暴露标准化
