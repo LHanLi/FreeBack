@@ -480,10 +480,12 @@ class World():
             if order.price == 'split':
                 # 平均价执行
                 price = (self.cur_market.loc[order.code]['high'] + self.cur_market.loc[order.code]['low'])/2
-            elif order.price == 'open':
-                price = self.cur_market.loc[order.code]['open']
-            elif order.price == 'close':
-                price = self.cur_market.loc[order.code]['close']
+            #elif order.price == 'open':
+            #    price = self.cur_market.loc[order.code]['open']
+            #elif order.price == 'close':
+            #    price = self.cur_market.loc[order.code]['close']
+            elif type(order.price)==type(""):
+                price = self.cur_market.loc[order.code][order.price]
             else:
                 # 限价单
                 price = order.price

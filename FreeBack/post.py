@@ -533,7 +533,8 @@ class Post():
         Close_amount = Close_amount.reset_index().set_index(['date', 'code', 'unique'])[0]
         # 每次交易盈亏（当前交易结束的现金流-上一次交易结束的现金流 ）
         self.Close_amount = Close_amount - Close_amount.groupby('code').shift().fillna(0)
-
+        self.trade_pnl = self.Close_amount.reset_index()[['date', 'code', 0]].set_index([\
+                                'date', 'code'])[0]
         # 筛出同月数据
         trades = self.Close_amount.reset_index()
         trades['month'] = trades['date'].apply(lambda x: x - datetime.timedelta(x.day-1)) 

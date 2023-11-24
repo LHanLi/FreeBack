@@ -69,7 +69,7 @@ class Portfolio():
 # df_market.pivot_table('open', 'date', 'code') 
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
-    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0.5, norm=True):
+    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0, norm=True):
         self.comm = comm
         self.cheat = cheat
         self.norm = norm
