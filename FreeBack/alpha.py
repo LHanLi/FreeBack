@@ -462,37 +462,37 @@ class EvalFactor():
         #    IC_series += IC_dict[period]
         #IC_series =  IC_series/len(periods)
         #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
-
+    # 因子QQ图
+    def QQ(self):
+        plt, fig, ax = matplot()
+        norm_dis = pd.Series(np.random.randn(len(self.factor))).sort_values()
+        ax.scatter(norm_dis, self.factor.sort_values())
+        ax.plot(norm_dis, norm_dis, c='C3', ls='--')
+        plt.show()
     # 因子收益率
     def fr_plot(self, period=1, rolling_period=20):
         plt, fig, ax = matplot()
-
         ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
         ax.legend(loc='lower left')
         ax2 = ax.twinx()
         ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率', c='C1')
         ax2.legend(loc='lower right')
-        plt.show()
-    
-    # 时间序列上指标
-    def TS_plot(self, period=1, rolling_period=20):
-        rolling_period = 20
-
-        plt, fig, ax = matplot()
-
-        #ax.plot(r, alpha=0.5, label='corr', c='C0')
-        ax.plot(self.IC_dict[period].rolling(rolling_period).mean(), label='corr', c='C0')
-        ax.legend(loc='upper left')
-        ax2 = ax.twinx()
-        #ax2.plot(beta, alpha=0.5, label='factor return', c='C1')
-        ax2.plot(self.fr_dict[period].rolling(rolling_period).mean(), label='factor return', c='C1')
-        ax2.legend(loc='upper right')
-        plt.show()
-
+        plt.show() 
+    ## 时间序列上指标
+    #def TS_plot(self, period=1, rolling_period=20):
+    #    rolling_period = 20
+    #    plt, fig, ax = matplot()
+    #    #ax.plot(r, alpha=0.5, label='corr', c='C0')
+    #    ax.plot(self.IC_dict[period].rolling(rolling_period).mean(), label='corr', c='C0')
+    #    ax.legend(loc='upper left')
+    #    ax2 = ax.twinx()
+    #    #ax2.plot(beta, alpha=0.5, label='factor return', c='C1')
+    #    ax2.plot(self.fr_dict[period].rolling(rolling_period).mean(), label='factor return', c='C1')
+    #    ax2.legend(loc='upper right')
+    #    plt.show()
     # 截面因子与收益率（散点图）
     def Cross_plot(self, date=None, period=1):
         plt, fig, ax = matplot()
-
         df_corr = self.cross_dict[period]
         beta = self.fr_dict[period]*period
         gamma = self.gamma_dict[period]
@@ -521,7 +521,7 @@ class EvalFactor():
 
 
 
-# 单独对某因子策略分析
+'''# 单独对某因子策略分析
 # 接受assess运行后的实例
 class Post():
     rf = 0.03
@@ -683,4 +683,4 @@ class Post():
         ax2.plot(self.hold_bars[contribution.index].values, alpha=0.3)
         ax2.set_ylabel('持有天数') 
         plt.savefig('disassemble.png')
-        plt.show()
+        plt.show()'''
