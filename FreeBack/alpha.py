@@ -1,20 +1,42 @@
 import pandas as pd
 import numpy as np
+from scipy import stats
 from FreeBack.post import matplot
 import datetime, copy
 
-# 常用函数
+# 因子标准化函数
 
-# 相同时间，从小到大排序，均匀映射到(0,1]
+# 排序值均匀映射到(0,1]
 def Rank(factor):
     # 因子排名
     rank = factor.groupby('date').rank()
   # normlize
     return rank/rank.groupby('date').max()
 
+# 将任意因子转化为正态分布
+# 转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
+def Gauss(factor, p=0.003):
+    rank = factor.groupby('date').rank()
+    continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
+    return continuous.map(lambda x: stats.norm.ppf(x))
+
 # 标准化
 def Norm(factor):
     return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
+
+# 因子降频（日频因子换月频）
+def resample(factor):
+    factor.name=0
+    df = pd.DataFrame(factor)
+    df['month'] = df.index.map(lambda x:x[0].month)
+    df['yesterday_month'] = df['month'].groupby('code').shift()
+    df = df.fillna(df.index[0][0].month)
+    df['monthly'] = df.apply(lambda x: x[0] if x.month!=x.yesterday_month else np.nan, axis=1)
+    df = df.groupby('code').fillna(method='ffill')
+    df = df.groupby('code').fillna(method='bfill')
+    return df['monthly']
+
+
 
 # 为了使得并行回测尽可能与事件驱动框架结果接近：
 # 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
@@ -147,16 +169,35 @@ class Portfolio():
             dateright = self.factor.index[-1][0]
         plt, fig, ax = matplot()
         ax2 = ax.twinx()
-        for i in range(len(self.a_b)):
+        # 画图曲线颜色和透明度区分
+        # 不包含等权指数
+        number = len(self.a_b)-1
+        number0 = int(number/2)
+        number1 = number - number0
+        #前一半为绿色，后一半为红色 （做多因子数值高组，做空因子数值低组）
+        color_list = ['C2']*number0 + ['C3']*number1
+        # 颜色越靠近中心越浅
+        alpha0 = (np.arange(number0)+1)[::-1]/number0
+        alpha1 = (np.arange(number1)+1)/number1
+        alpha_list = np.append(alpha0, alpha1)
+        for i in range(number):
             returns = self.mat_returns[i_period][i].loc[dateleft:dateright]
 #            ax.plot((1+returns).cumprod(), label=str(self.a_b[i]), alpha=0.3)
             turnover = self.mat_turnover[i_period][i].loc[dateleft:dateright]
             holdn = self.mat_holdn[i_period][i].loc[dateleft:dateright]
             # 真实净值变化
             returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
-            ax.plot(returns.cumprod(), label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
+            #ax.plot(returns.cumprod(), label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
+            ax.plot(returns.cumprod(), c=color_list[i], alpha=alpha_list[i],\
+                    label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
             # 持有数量
-            ax2.plot(holdn, alpha=0.3)
+            ax2.plot(holdn, c=color_list[i], alpha=alpha_list[i], ls='--')
+        # 等权指数
+        returns = self.mat_returns[i_period][-1].loc[dateleft:dateright]
+        turnover = self.mat_turnover[i_period][-1].loc[dateleft:dateright]
+        returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
+        ax.plot(returns.cumprod(), c='C1',\
+                    label='等权指数 '+' 换手率=%.1f'%(turnover.mean()*250))
         ax.legend()
         ax.set_title('调整频率: %d 日'%self.periods[i_period])
         ax.set_ylabel('累计净值')
@@ -214,8 +255,11 @@ class Portfolio():
         #ax.plot(self.threshold[0], label='low bound',
         #        c='C1')
         for i in range(number):
+            # 按分位数分组则显示因子值，按因子值分组则显示分位数
             if self.norm==True:
-                ax.plot(self.threshold[i+1].rolling(20).mean(), label=str(self.a_b[i][1]),
+                #ax.plot(self.threshold[i+1].rolling(20).mean(), label=str(self.a_b[i][1]),
+                #    c=color_list[i], alpha=alpha_list[i])
+                ax.plot(self.threshold[i+1], label=str(self.a_b[i][1]),
                     c=color_list[i], alpha=alpha_list[i])
             else:
                 line = pd.Series(index=self.returns.index).copy()
@@ -229,6 +273,7 @@ class Portfolio():
         # 避免显示异常值
         ax2.set_ylabel('Factor group stock number')
         ax.set_xlabel('Date')
+        ax.set_xlim(self.returns.index[0], self.returns.index[-1])
         plt.gcf().autofmt_xdate()
         plt.savefig("FactorThreshold.png")
         plt.show()
@@ -406,7 +451,7 @@ class Reg():
         #factor_mean =  factor.groupby('date').mean()
         #factor_std = factor.groupby('date').std()
         # 因子
-        factor = Norm(factor)
+        factor = Gauss(factor)
         self.factor = factor
         factor = pd.DataFrame(factor.rename('factor'))
         #factor['mean'] = factor.index.map(lambda x: factor_mean[x[0]])
@@ -420,6 +465,7 @@ class Reg():
         # 多周期IC\因子收益率序列
         IC_dict = {}
         fr_dict = {}
+        # 每日回归截距
         gamma_dict = {}
         cross_dict = {}
         for period in periods:
@@ -463,20 +509,27 @@ class Reg():
         #IC_series =  IC_series/len(periods)
         #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
     # 因子QQ图
-    def QQ(self):
-        plt, fig, ax = matplot()
-        norm_dis = pd.Series(np.random.randn(len(self.factor))).sort_values()
-        ax.scatter(norm_dis, self.factor.sort_values())
+    def QQ(self, date=None):
+        plt, fig, ax = matplot(w=6, d=4)
+        if date==None:
+            norm_dis = pd.Series(np.random.randn(len(self.factor))).sort_values()
+            ax.scatter(norm_dis, self.factor.sort_values())
+        else:
+            norm_dis = pd.Series(np.random.randn(len(self.factor.loc[date]))).sort_values()
+            ax.scatter(norm_dis, self.factor.loc[date].sort_values())
         ax.plot(norm_dis, norm_dis, c='C3', ls='--')
+        ax.set_title('Q-Q plot')
+        ax.set_aspect('equal')
         plt.show()
     # 因子收益率
-    def fr_plot(self, period=1, rolling_period=20):
+    def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = matplot()
         ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
         ax.legend(loc='lower left')
         ax2 = ax.twinx()
         ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率', c='C1')
         ax2.legend(loc='lower right')
+        ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
         plt.show() 
     ## 时间序列上指标
     #def TS_plot(self, period=1, rolling_period=20):
@@ -491,7 +544,7 @@ class Reg():
     #    ax2.legend(loc='upper right')
     #    plt.show()
     # 截面因子与收益率（散点图）
-    def Cross_plot(self, date=None, period=1):
+    def cross(self, date=None, period=1):
         plt, fig, ax = matplot()
         df_corr = self.cross_dict[period]
         beta = self.fr_dict[period]*period
@@ -503,9 +556,21 @@ class Reg():
         else:
             ax.scatter(df_corr.loc[date]['factor'], df_corr.loc[date]['value'])
             ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
-            plt.title('r = %.2lf beta = %.2lf'%(r.loc[date], beta.loc[date]*10000))
+            plt.title('r = %.2lf beta(万) = %.2lf gamma(万) = %.2lf'%(r.loc[date], beta.loc[date]*10000, gamma.loc[date]*10000))
         plt.show()
+    # 因子换手率（加权因子组合）
+    def turnover(self):
+        # 直接从因子排序值获得换手率（或者类似指标）
+        factor_rank = Rank(self.factor)
+        hold_ratio = factor_rank/factor_rank.groupby('date').sum()
+        turnover = abs(hold_ratio - hold_ratio.shift()).groupby('date').sum()
 
+        plt, fig, ax = matplot()
+        ax.plot(turnover*100)
+        ax.set_ylabel('(%)')
+        ax.set_title('因子换手率')
+        ax.set_xlim(turnover.index[0], turnover.index[-1])
+        plt.show()
 
 
 
