@@ -91,10 +91,11 @@ class Portfolio():
 # df_market.pivot_table('open', 'date', 'code') 
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
-    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0.5, norm=True):
+    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0, norm=True, justdivide=False):
         self.comm = comm
         self.cheat = cheat
         self.norm = norm
+        self.justdivide=justdivide
 #        # 先按照截面排序归一化
         if norm:
             self.factor = Rank(pd.DataFrame(factor.rename('factor')))
@@ -126,7 +127,7 @@ class Portfolio():
         self.result.index.name = 'holding period'
 # 全部区间 return
 # divide
-    def run(self, divide = (0, 0.2, 0.4, 0.6, 0.8, 1), periods=(1, 5, 20), justdivide=False):
+    def run(self, divide = (0, 0.2, 0.4, 0.6, 0.8, 1), periods=(1, 5, 20)):
         self.periods = periods
         # 最后一个区间为（0，1）表示等权配置收益指数
         # 如果是list则直接为a_b
@@ -146,7 +147,7 @@ class Portfolio():
                 self.threshold = [i for i in divide]
             self.a_b = [(divide[i],divide[i+1]) for i in range(len(divide)-1)]
         # 如果justdivide = True不计算(0，1)
-        if not justdivide:
+        if not self.justdivide:
             if self.norm == True:
                 self.a_b = self.a_b + [(0,1)]
             else:
@@ -158,7 +159,7 @@ class Portfolio():
         self.matrix_lr()
         self.matrix_holdn()
         self.matrix_turnover()
-        if not justdivide:
+        if not self.justdivide:
             self.get_result()
 # plot
 # 因子组合收益（单边做多，考虑交易成本（默认单边万7））
@@ -171,7 +172,10 @@ class Portfolio():
         ax2 = ax.twinx()
         # 画图曲线颜色和透明度区分
         # 不包含等权指数
-        number = len(self.a_b)-1
+        if self.justdivide:
+            number = len(self.a_b)
+        else:
+            number = len(self.a_b)-1
         number0 = int(number/2)
         number1 = number - number0
         #前一半为绿色，后一半为红色 （做多因子数值高组，做空因子数值低组）
@@ -192,11 +196,12 @@ class Portfolio():
                     label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
             # 持有数量
             ax2.plot(holdn, c=color_list[i], alpha=alpha_list[i], ls='--')
-        # 等权指数
-        returns = self.mat_returns[i_period][-1].loc[dateleft:dateright]
-        turnover = self.mat_turnover[i_period][-1].loc[dateleft:dateright]
-        returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
-        ax.plot(returns.cumprod(), c='C1',\
+        if not self.justdivide:
+            # 等权指数
+            returns = self.mat_returns[i_period][-1].loc[dateleft:dateright]
+            turnover = self.mat_turnover[i_period][-1].loc[dateleft:dateright]
+            returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
+            ax.plot(returns.cumprod(), c='C1',\
                     label='等权指数 '+' 换手率=%.1f'%(turnover.mean()*250))
         ax.legend()
         ax.set_title('调整频率: %d 日'%self.periods[i_period])
