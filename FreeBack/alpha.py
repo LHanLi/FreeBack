@@ -451,19 +451,11 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5), factor_name = 'alpha0'):
-        # 因子暴露标准化
-        #factor_mean =  factor.groupby('date').mean()
-        #factor_std = factor.groupby('date').std()
-        # 因子
+    def __init__(self, factor, price, periods=(1, 3, 5, 10, 20, 40, 60), factor_name = 'alpha0'):
+        self.periods = periods
         factor = Gauss(factor)
         self.factor = factor
         factor = pd.DataFrame(factor.rename('factor'))
-        #factor['mean'] = factor.index.map(lambda x: factor_mean[x[0]])
-        #factor['std'] = factor.index.map(lambda x: factor_std[x[0]])
-        #factor['norm'] = (factor['factor'] - factor['mean'])/factor['std']
-        #factor = factor['norm']
-        #factor = pd.DataFrame(factor.rename('factor'))
         # 输出结果 列：因子指标  行：时间周期
         result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual returns', 'sharpe'])
         result.index.name='period'
@@ -473,7 +465,7 @@ class Reg():
         # 每日回归截距
         gamma_dict = {}
         cross_dict = {}
-        for period in periods:
+        for period in self.periods:
             # 预测收益率  预测n期收益率
             returns = (price.shift(-period) - price)/price
             #returns = returns.shift(-period)
@@ -487,13 +479,11 @@ class Reg():
             #IC_dict[period] = IC_series
             df, beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
             gamma_dict[period] = gamma
-
             # 因子指标
             IC_dict[period] = r
             IC = r.mean()
             ICIR = IC/r.std()
             absIC = (abs(r)).mean()
-            IC
             # 因子收益率(单位预测周期 1day)
             fr_dict[period] = beta/period
             fr = beta.mean()/period
@@ -536,18 +526,6 @@ class Reg():
         ax2.legend(loc='lower right')
         ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
         plt.show() 
-    ## 时间序列上指标
-    #def TS_plot(self, period=1, rolling_period=20):
-    #    rolling_period = 20
-    #    plt, fig, ax = matplot()
-    #    #ax.plot(r, alpha=0.5, label='corr', c='C0')
-    #    ax.plot(self.IC_dict[period].rolling(rolling_period).mean(), label='corr', c='C0')
-    #    ax.legend(loc='upper left')
-    #    ax2 = ax.twinx()
-    #    #ax2.plot(beta, alpha=0.5, label='factor return', c='C1')
-    #    ax2.plot(self.fr_dict[period].rolling(rolling_period).mean(), label='factor return', c='C1')
-    #    ax2.legend(loc='upper right')
-    #    plt.show()
     # 截面因子与收益率（散点图）
     def cross(self, date=None, period=1):
         plt, fig, ax = matplot()
@@ -563,8 +541,17 @@ class Reg():
             ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
             plt.title('r = %.2lf beta(万) = %.2lf gamma(万) = %.2lf'%(r.loc[date], beta.loc[date]*10000, gamma.loc[date]*10000))
         plt.show()
-    # 因子换手率（加权因子组合）
+    # 因子换手率（因子自相关系数组合）
     def turnover(self):
+        self.corr_dic = {}
+        for period in self.periods:
+            # 初始位置
+            factor_original = self.factor.copy()
+            factor_original.name = 'original'
+            factor_latter = self.factor.groupby('code').shift(period).copy()
+            factor_latter.name = 'latter'
+            self.corr_dic[period] = pd.concat([factor_original, factor_latter], axis=1).groupby('date').corr(method='pearson').loc[:, 'original', :]['latter'].mean()
+
         # 直接从因子排序值获得换手率（或者类似指标）
         factor_rank = Rank(self.factor)
         hold_ratio = factor_rank/factor_rank.groupby('date').sum()
