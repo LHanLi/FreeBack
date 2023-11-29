@@ -447,11 +447,14 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
     else:
         return df
     
-# 单因子评价  
+# 回归法
+# 此处回归获得的因子收益率即为回归的斜率，对应的是等权做多/做空因子值（标准化后）
+# 大于+/小于-0.302或者因子值最大/最小38.13%(61.87%)的组合收益
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5, 10, 20, 40, 60), factor_name = 'alpha0'):
+    def __init__(self, factor, price, periods=(1, 3, 5, 10, 20), factor_name = 'alpha0'):
+        self.price = price
         self.periods = periods
         factor = Gauss(factor)
         self.factor = factor
@@ -468,7 +471,10 @@ class Reg():
         for period in self.periods:
             # 预测收益率  预测n期收益率
             returns = (price.shift(-period) - price)/price
-            #returns = returns.shift(-period)
+            # 预测因子出现之后间隔n期的收益率
+            #returns = ((price.shift(-1) - price)/price).shift(1-period)
+            # 对数收益率
+            #returns = np.log(price.shift(-period)/price)-1
             returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
             # 合并df
             df_corr = pd.concat([factor, returns], axis=1).dropna()
@@ -487,6 +493,8 @@ class Reg():
             # 因子收益率(单位预测周期 1day)
             fr_dict[period] = beta/period
             fr = beta.mean()/period
+            #fr_dict[period] = beta
+            #fr = beta.mean()
             frIR = fr/beta.std()
             record = {'absIC':absIC, 'IC':IC, 'ICIR':ICIR, 'annual returns':250*fr, \
                       'sharpe':np.sqrt(250)*frIR}
