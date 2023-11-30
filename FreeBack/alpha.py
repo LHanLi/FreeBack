@@ -36,6 +36,19 @@ def resample(factor):
     df = df.groupby('code').fillna(method='bfill')
     return df['monthly']
 
+# 绘制因子分布的QQ图，观察是否符合正态分布
+def QQ(factor, date=None):
+    plt, fig, ax = matplot(w=6, d=4)
+    if date==None:
+        norm_dis = pd.Series(np.random.randn(len(factor))).sort_values()
+        ax.scatter(norm_dis, factor.sort_values())
+    else:
+        norm_dis = pd.Series(np.random.randn(len(factor.loc[date]))).sort_values()
+        ax.scatter(norm_dis, factor.loc[date].sort_values())
+    ax.plot(norm_dis, norm_dis, c='C3', ls='--')
+    ax.set_title('Q-Q plot')
+    ax.set_aspect('equal')
+    plt.show()
 
 
 # 为了使得并行回测尽可能与事件驱动框架结果接近：
@@ -459,8 +472,13 @@ class Reg():
         factor = Gauss(factor)
         self.factor = factor
         factor = pd.DataFrame(factor.rename('factor'))
-        # 输出结果 列：因子指标  行：时间周期
-        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual returns', 'sharpe'])
+        # 输出结果 列：IC绝对值均值， IC均值， ICIR， 年化因子收益率， 年化夏普， 年化换手， 
+        # 交易成本万1夏普， 交易成本万3夏普， 交易成本万5夏普， 交易成本万10夏普
+        #   行：时间周期
+        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual return', 'sharpe',\
+                'comm1_r', 'comm1_s', 'comm3_r', 'comm3_s', \
+                    'comm5_r', 'comm5_s', 'comm10_r', 'comm10_s',\
+                    'comm20_r', 'comm20_s'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
@@ -468,6 +486,8 @@ class Reg():
         # 每日回归截距
         gamma_dict = {}
         cross_dict = {}
+        # 多空单位因子收益率组合平均换手率
+        turnover_dict = {}
         for period in self.periods:
             # 预测收益率  预测n期收益率
             returns = (price.shift(-period) - price)/price
@@ -496,8 +516,52 @@ class Reg():
             #fr_dict[period] = beta
             #fr = beta.mean()
             frIR = fr/beta.std()
-            record = {'absIC':absIC, 'IC':IC, 'ICIR':ICIR, 'annual returns':250*fr, \
-                      'sharpe':np.sqrt(250)*frIR}
+            # 换手率
+            # 多头组合成分
+            factor_L = self.factor[self.factor>0.302].copy()
+            name = factor_L.name
+            factor_L = factor_L.reset_index()
+            factor_L[name] = 1
+            # 组合权重
+            weight_L = factor_L.pivot_table(name, 'date', 'code')
+            weight_L = weight_L.div(weight_L.sum(axis=1), axis='rows').fillna(0)
+            # 如果未调整period日后的组合权重
+            noadjust_weight = weight_L.shift(period)*(self.price/self.price.shift(period))[weight_L.columns]
+            noadjust_weight = noadjust_weight.div(noadjust_weight.sum(axis=1), axis='rows').fillna(0)
+            turnover_L = (abs(weight_L-noadjust_weight).sum(axis=1)).mean()/period
+            # 空头组合成分
+            factor_S = self.factor[self.factor<-0.302].copy()
+            name = factor_S.name
+            factor_S = factor_S.reset_index()
+            factor_S[name] = 1
+            # 组合权重
+            weight_S = factor_S.pivot_table(name, 'date', 'code')
+            weight_S = weight_S.div(weight_S.sum(axis=1), axis='rows').fillna(0)
+            # 如果未调整period日后的组合权重
+            noadjust_weight = weight_S.shift(period)*(self.price/self.price.shift(period))[weight_S.columns]
+            noadjust_weight = noadjust_weight.div(noadjust_weight.sum(axis=1), axis='rows').fillna(0)
+            turnover_S = (abs(weight_S-noadjust_weight).sum(axis=1)).mean()/period
+            turnover = ((turnover_S+turnover_L)/2).mean()*250
+            turnover_dict[period] = turnover
+            # 费后收益及夏普
+            comm1_return = ((1+250*fr)*(1-1/1e4)**turnover-1)
+            comm1_sharpe = comm1_return/(np.sqrt(250)*beta.std()) 
+            comm3_return = ((1+250*fr)*(1-3/1e4)**turnover-1)
+            comm3_sharpe = comm3_return/(np.sqrt(250)*beta.std()) 
+            comm5_return = ((1+250*fr)*(1-5/1e4)**turnover-1)
+            comm5_sharpe = comm5_return/(np.sqrt(250)*beta.std())
+            comm10_return = ((1+250*fr)*(1-10/1e4)**turnover-1)
+            comm10_sharpe = comm10_return/(np.sqrt(250)*beta.std()) 
+            comm20_return = ((1+250*fr)*(1-20/1e4)**turnover-1)
+            comm20_sharpe = comm20_return/(np.sqrt(250)*beta.std()) 
+            record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'ICIR':round(100*ICIR,1), \
+                      'annual return':round(250*fr*100,1), \
+                      'sharpe':round(np.sqrt(250)*frIR,1),\
+                'comm1_r':round(100*comm1_return,1), 'comm1_s':round(comm1_sharpe,1),\
+                'comm3_r':round(100*comm3_return,1), 'comm3_s':round(comm3_sharpe,1),\
+                'comm5_r':round(100*comm5_return,1), 'comm5_s':round(comm5_sharpe,1),\
+                    'comm10_r':round(100*comm10_return,1), 'comm10_s':round(comm10_sharpe,1),\
+                    'comm20_r':round(100*comm20_return,1), 'comm20_s':round(comm20_sharpe,1)}
             result.loc[period] = record
         self.IC_dict = IC_dict
         self.fr_dict = fr_dict
@@ -511,19 +575,6 @@ class Reg():
         #    IC_series += IC_dict[period]
         #IC_series =  IC_series/len(periods)
         #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
-    # 因子QQ图
-    def QQ(self, date=None):
-        plt, fig, ax = matplot(w=6, d=4)
-        if date==None:
-            norm_dis = pd.Series(np.random.randn(len(self.factor))).sort_values()
-            ax.scatter(norm_dis, self.factor.sort_values())
-        else:
-            norm_dis = pd.Series(np.random.randn(len(self.factor.loc[date]))).sort_values()
-            ax.scatter(norm_dis, self.factor.loc[date].sort_values())
-        ax.plot(norm_dis, norm_dis, c='C3', ls='--')
-        ax.set_title('Q-Q plot')
-        ax.set_aspect('equal')
-        plt.show()
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = matplot()
@@ -549,8 +600,8 @@ class Reg():
             ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
             plt.title('r = %.2lf beta(万) = %.2lf gamma(万) = %.2lf'%(r.loc[date], beta.loc[date]*10000, gamma.loc[date]*10000))
         plt.show()
-    # 因子换手率（因子自相关系数组合）
-    def turnover(self):
+    # 因子自相关系数组合
+    def autocorr(self):
         self.corr_dic = {}
         for period in self.periods:
             # 初始位置
@@ -559,18 +610,6 @@ class Reg():
             factor_latter = self.factor.groupby('code').shift(period).copy()
             factor_latter.name = 'latter'
             self.corr_dic[period] = pd.concat([factor_original, factor_latter], axis=1).groupby('date').corr(method='pearson').loc[:, 'original', :]['latter'].mean()
-
-        # 直接从因子排序值获得换手率（或者类似指标）
-        factor_rank = Rank(self.factor)
-        hold_ratio = factor_rank/factor_rank.groupby('date').sum()
-        turnover = abs(hold_ratio - hold_ratio.shift()).groupby('date').sum()
-
-        plt, fig, ax = matplot()
-        ax.plot(turnover*100)
-        ax.set_ylabel('(%)')
-        ax.set_title('因子换手率')
-        ax.set_xlim(turnover.index[0], turnover.index[-1])
-        plt.show()
 
 
 
