@@ -475,7 +475,7 @@ class Reg():
         # 输出结果 列：IC绝对值均值， IC均值， ICIR， 年化因子收益率， 年化夏普， 年化换手， 
         # 交易成本万1夏普， 交易成本万3夏普， 交易成本万5夏普， 交易成本万10夏普
         #   行：时间周期
-        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual return', 'sharpe',\
+        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual return', 'sharpe', 'turnover',\
                 'comm1_r', 'comm1_s', 'comm3_r', 'comm3_s', \
                     'comm5_r', 'comm5_s', 'comm10_r', 'comm10_s',\
                     'comm20_r', 'comm20_s'])
@@ -554,9 +554,9 @@ class Reg():
             comm10_sharpe = comm10_return/(np.sqrt(250)*beta.std()) 
             comm20_return = ((1+250*fr)*(1-20/1e4)**turnover-1)
             comm20_sharpe = comm20_return/(np.sqrt(250)*beta.std()) 
-            record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'ICIR':round(100*ICIR,1), \
+            record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'ICIR':round(10*ICIR,1), \
                       'annual return':round(250*fr*100,1), \
-                      'sharpe':round(np.sqrt(250)*frIR,1),\
+                      'sharpe':round(np.sqrt(250)*frIR,1), 'turnover':round(turnover,1),\
                 'comm1_r':round(100*comm1_return,1), 'comm1_s':round(comm1_sharpe,1),\
                 'comm3_r':round(100*comm3_return,1), 'comm3_s':round(comm3_sharpe,1),\
                 'comm5_r':round(100*comm5_return,1), 'comm5_s':round(comm5_sharpe,1),\
