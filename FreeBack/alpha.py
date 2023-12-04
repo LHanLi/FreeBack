@@ -15,10 +15,16 @@ def Rank(factor):
 
 # 将任意因子转化为正态分布
 # 转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
-def Gauss(factor, p=0.003):
-    rank = factor.groupby('date').rank()
-    continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
-    return continuous.map(lambda x: stats.norm.ppf(x))
+def Gauss(factor, p=0.003, slice=False):
+    # cross选项开启代表仅有一个截面数据
+    if not slice:
+        rank = factor.groupby('date').rank()
+        continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
+        return continuous.map(lambda x: stats.norm.ppf(x))
+    else:
+        rank = factor.rank()
+        continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
+        return continuous.map(lambda x: stats.norm.ppf(x))
 
 # 标准化
 def Norm(factor):
@@ -471,6 +477,7 @@ class Reg():
         self.periods = periods
         factor = Gauss(factor)
         self.factor = factor
+        self.factor.name = factor_name
         factor = pd.DataFrame(factor.rename('factor'))
         # 输出结果 列：IC绝对值均值， IC均值， ICIR， 年化因子收益率， 年化夏普， 年化换手， 
         # 交易成本万1夏普， 交易成本万3夏普， 交易成本万5夏普， 交易成本万10夏普
