@@ -6,12 +6,12 @@ import datetime, copy
 
 # 因子标准化函数
 
-# 排序值均匀映射到(0,1]
+# 排序值均匀映射到(0,1)
 def Rank(factor):
     # 因子排名
     rank = factor.groupby('date').rank()
   # normlize
-    return rank/rank.groupby('date').max()
+    return rank/(rank.groupby('date').max()+1)
 
 # 将任意因子转化为正态分布
 # 转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
