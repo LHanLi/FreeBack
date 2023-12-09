@@ -4,17 +4,25 @@ from scipy import stats
 from FreeBack.post import matplot
 import datetime, copy
 
-# 因子标准化函数
 
-# 排序值均匀映射到(0,1)
+
+########################################################### 因子计算常用函数 ############################################################
+# 无特殊说明下 factor,price的格式为pd.Series,其中index的格式为multiindex (date code)
+
+
+
+# 每日全部index的因子值从小到大排序,均匀映射到(0,1)
 def Rank(factor):
     # 因子排名
     rank = factor.groupby('date').rank()
-  # normlize
     return rank/(rank.groupby('date').max()+1)
 
-# 将任意因子转化为正态分布
-# 转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
+# 标准化到 \mu = 0 \sigma = 1 分布
+def Norm(factor):
+    return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
+
+# 将每日的因子值转化为正态分布,开启slice选项时为仅转化一个截面
+# 通过正态分布累计概率函数的逆函数将[p,1-p]的均匀分布转化为正态分布，转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
 def Gauss(factor, p=0.003, slice=False):
     # cross选项开启代表仅有一个截面数据
     if not slice:
@@ -26,21 +34,18 @@ def Gauss(factor, p=0.003, slice=False):
         continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
         return continuous.map(lambda x: stats.norm.ppf(x))
 
-# 标准化
-def Norm(factor):
-    return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
-
-# 因子降频（日频因子换月频）
-def resample(factor):
+# 因子降频（日频因子换月频/周频）
+# 每月、每周内的因子值替换为月初、周初因子值
+def resample(factor, freq='month'):
     factor.name=0
     df = pd.DataFrame(factor)
-    df['month'] = df.index.map(lambda x:x[0].month)
-    df['yesterday_month'] = df['month'].groupby('code').shift()
-    df = df.fillna(df.index[0][0].month)
-    df['monthly'] = df.apply(lambda x: x[0] if x.month!=x.yesterday_month else np.nan, axis=1)
+    df['th'] = df.index.map(lambda x:getattr(x[0], freq))
+    df['yesterday_th'] = df['th'].groupby('code').shift()
+    df = df.fillna(df.index[0][0][freq])
+    df['after'] = df.apply(lambda x: x[0] if x.th!=x.yesterday_th else np.nan, axis=1)
     df = df.groupby('code').fillna(method='ffill')
     df = df.groupby('code').fillna(method='bfill')
-    return df['monthly']
+    return df['after']
 
 # 绘制因子分布的QQ图，观察是否符合正态分布
 def QQ(factor, date=None):
@@ -57,10 +62,17 @@ def QQ(factor, date=None):
     plt.show()
 
 
-# 为了使得并行回测尽可能与事件驱动框架结果接近：
-# 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
-# 得到factor(确定持仓), price（确定权重）, price_return（确定收益率）分别对应的market_factor, market_price, market_return
-# 如果需要排除需要在market中添加一列“alpha-keep”为True为保留，False为排除
+
+########################################################### 因子检测 #################################################################
+
+
+
+# alpha-keep 为False表示该行被排除，factor来自此dataframe，在因子分组时排除，
+# 但是price需要使用全市场数据,否则alpha-keep的排除过程就会引入未来数据（比如在被踢出分组的前后收益率为nan）
+## 为了使得并行回测尽可能与事件驱动框架结果接近：
+## 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
+## 得到factor(确定持仓), price（确定权重）, price_return（确定收益率）分别对应的market_factor, market_price, market_return
+## 如果需要排除需要在market中添加一列“alpha-keep”为True为保留，False为排除
 def get_market(market):
     if 'alpha-keep' not in market.columns:
         #return market, market, market[market['vol']!=0]
@@ -95,24 +107,32 @@ def get_market(market):
     #    # 确定持仓,排除的不要
     #    #market_factor = market[market['alpha-keep']]
         market_factor = market[market['alpha-keep']]
-        #return market_factor, market_price, market_price[market_price['vol']!=0]
         return market_factor.copy(), market.copy()
+
+
+
+######################################################### 组合法 ####################################################################
 
 
 
 # 因子投资组合
 class Portfolio():
+# factor pd.Series, multiindex(date,code)    T日因子值 
+# price T日交易价格(使用后一天开盘价或者VWAP等是接近实际情况的，用来确定权重、收益率) 
+# divide 输入模式1，tuple,给出全部阈值确定连续分组； 输入模式2， list， 给出每个分组的前后阈值。
+# periods 轮动的时间间隔
+# returns 默认情况下使用T-1日到T日price计算收益率,也可以直接接收定义，格式为index is date  columns is code， value is 收益率 空值补0
+# holdweight T日的投资组合权重，默认等权
+# comm 每次换手的交易成本，默认为0
+# norm 是否将因子值截面转化为排序值（0到1），默认开启 
+# justdivide 是否仅计算给出分组的收益而不计算全市场组合收益，默认计算全市场组合收益(权重由holdweight确定)
 # 当日收益率为当日收盘价相对昨日收盘价收益率*前一日持仓权重
 # 作弊模式    当日因子确定当日持仓 
-# df_market.pivot_table('close','date','code')
-# df_market.pivot_table('open','date','code').shift(-1)
-# 不开启作弊  当日因子确定明日持仓 使用开盘价结算 
-# df_market.pivot_table('open', 'date', 'code') 
 # holdweight 持仓权重矩阵  例如流通市值
 # comm 不影响结果，仅仅在result中给出多头费后年化收益率 
-    def __init__(self, factor, price, holdweight=None, cheat = True, comm=0, norm=True, justdivide=False):
+    def __init__(self, factor, price, divide=(0, 0.2, 0.4, 0.6, 0.8, 1), periods=(1, 5, 20), \
+                 returns=None, holdweight=None, comm=0, norm=True, justdivide=False):
         self.comm = comm
-        self.cheat = cheat
         self.norm = norm
         self.justdivide=justdivide
 #        # 先按照截面排序归一化
@@ -122,33 +142,30 @@ class Portfolio():
             self.factor = pd.DataFrame(factor.rename('factor'))
         self.variable = factor
         # 一个确定持有张数（不去除停牌），一个确定收益率(去除停牌)
-        self.price = price
+        self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
+        # 每日收益率(当日收盘相比上日收盘)
+        if type(returns) == type(None):
+            returns = self.price/self.price.shift() - 1
+            returns = returns.fillna(0)
+            self.returns = returns
+        else:
+            self.returns = returns
+        # 组合权重 
         if type(holdweight) != type(None):
             # 退市后即为0
             holdweight = holdweight.fillna(0)
             self.holdweight = holdweight.apply(lambda x: x/x.sum(), axis=1)
         else:
             self.holdweight = None
-        #if self.cheat:
-            # 每日收益率(当日收盘相比上日收盘)
-        returns = price/price.shift() - 1
-        returns = returns.fillna(0)
-        self.returns = returns
-        #else:
-        #    # 次日开盘相对当日开盘收益率
-        #    returns = price_return.shift(-1)/price_return - 1
-        #    returns = returns.fillna(0)
-        #    self.returns = returns
         # 结果dataframe 行：时间周期  列：IC、ICIR（分组计算的IC、ICIR(非rank)）、 多空组合收益、多头收益、 等权收益、
         # 考虑换手率多空收益、 夏普、 多空平均换手率
         self.result = pd.DataFrame(columns=['group IC', 'group ICIR', 'L&S return', 'L return', 'market return', 
                 'L&S sharpe', 'L sharpe', 'market sharpe', 'real return', 'real sharpe', 'turnover'])
         self.result.index.name = 'holding period'
-# 全部区间 return
-# divide
-    def run(self, divide = (0, 0.2, 0.4, 0.6, 0.8, 1), periods=(1, 5, 20)):
+        # 运行
+        self.run(divide, periods)
+    def run(self, divide, periods):
         self.periods = periods
-        # 最后一个区间为（0，1）表示等权配置收益指数
         # 如果是list则直接为a_b
         if type(divide) == type(list()):
             # 代理变量绝对值
@@ -311,10 +328,7 @@ class Portfolio():
         self.group_number = [i.groupby('date').count() for i in bar_hold]
         # 在date没有出现的code补np.nan
         # 每个bar持仓表，如果不开启作弊则统一向后移动一个bar
-        if self.cheat == True:
-            bar_hold = [i.pivot_table('factor', 'date', 'code') for i in bar_hold]
-        else:
-            bar_hold = [i.pivot_table('factor', 'date', 'code').shift() for i in bar_hold]
+        bar_hold = [i.pivot_table('factor', 'date', 'code') for i in bar_hold]
         # 非null的持仓数量为 1/price（持仓金额相等）
         bar_hold = [i.isnull() for i in bar_hold]
         bar_hold = [i.replace([True,False],[0,1])*(1/self.price) for i in bar_hold]
@@ -351,13 +365,8 @@ class Portfolio():
             # 合约市值权重  不是真实的市值 
             list_cap = [hold * self.price for hold in list_hold]
             list_weight = [cap.apply(lambda x: x/x.sum(), axis=1).fillna(0) for cap in list_cap]
-            #if self.cheat:
-            #    list_contri = [(weight*self.returns).fillna(0) for weight in list_weight]
-            ## 当日收益(昨日weight)
-            #else:
+            # 当日收益(return*昨日weight)
             list_contri = [(weight.shift()*self.returns).fillna(0) for weight in list_weight]
-            # 或者乘以次日收益
-#            list_contri = [(weight*self.returns.shift(-1)).fillna(0) for weight in list_weight]
             mat_contri.append(list_contri)
             mat_weight.append(list_weight)
         self.mat_contri = mat_contri
@@ -375,21 +384,6 @@ class Portfolio():
         self.mat_returns = mat_returns
     def matrix_turnover(self):
         mat_turnover = []
-        #for list_hold in self.mat_hold:
-        #    # 持仓变化 初始期为0
-        #    list_delta_hold = [hold - hold.shift().fillna(0) for hold in list_hold]
-        #    # 成交量
-        #    list_amount = [np.abs(delta_hold*self.price) for delta_hold in list_delta_hold]
-        #    list_amount = [amount.sum(axis=1) for amount in list_amount]
-        #    # 市值(等于持仓个数)
-        #    #list_cap = [(hold*self.price).sum(axis=1) for hold in list_hold]
-        #    list_cap = [(hold != 0).sum(axis=1) for hold in list_hold]
-        #    # 换手率  如果清仓则会计算为np.inf 替换为1
-        #    list_turnover = [list_amount[i]/list_cap[i] for i in range(len(list_hold))]
-        #    list_turnover = [i.apply(lambda x: x if x!=np.inf else 1) for i in list_turnover]
-        #    # 年化换手率
-#       #     list_turnover = [i.mean()*250 for i in list_turnover]
-        #    mat_turnover.append(list_turnover)
         # 假设当期没有换仓的权重与当期权重的差值即为换手率
         # 换仓周期
         for i in range(len(self.mat_weight)):
@@ -448,6 +442,11 @@ class Portfolio():
 
 
 
+######################################################### 回归法 ####################################################################
+
+
+
+# 截面一元线性回归
 def cal_CrossReg(df_, x_name, y_name, series=False):
     df = copy.copy(df_)
     name = y_name + '-' + x_name + '--alpha'
@@ -473,7 +472,7 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
 class Reg():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 3, 5, 10, 20), factor_name = 'alpha0'):
-        self.price = price
+        self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
         factor = Gauss(factor)
         self.factor = factor
@@ -497,7 +496,7 @@ class Reg():
         turnover_dict = {}
         for period in self.periods:
             # 预测收益率  预测n期收益率
-            returns = (price.shift(-period) - price)/price
+            returns = (self.price.shift(-period) - self.price)/self.price
             # 预测因子出现之后间隔n期的收益率
             #returns = ((price.shift(-1) - price)/price).shift(1-period)
             # 对数收益率
@@ -629,169 +628,3 @@ class Reg():
 
 
 
-
-
-
-'''# 单独对某因子策略分析
-# 接受assess运行后的实例
-class Post():
-    rf = 0.03
-# which对应mat_**[,]的因子策略，benchmark 如果不加入则默认为等权组合   交易成本 默认为万0  
-    def __init__(self, assess,which=(0,0), benchmark=None, cost=0):
-    # 传递数据
-        self.cost = cost
-        self.contri = assess.mat_contri[which[0]][which[1]]
-        self.returns = assess.mat_returns[which[0]][which[1]]
-        self.turnover = assess.mat_turnover[which[0]][which[1]]
-        self.holdn = assess.mat_holdn[which[0]][which[1]]
-#        # 持仓 Series
-#        self.hold = assess.mat_hold[which[0]][which[1]]
-#        s = pd.Series(dtype='float64')
-#        for d in self.hold.index:
-#            series = pd.Series({d:list(self.hold.columns[(self.hold != 0).loc[d]])})
-#            s = pd.concat([s,series])
-#        self.holdlist = s
-        # 真实净值收益
-        self.returns = (1-self.turnover.shift().fillna(0)*self.cost/10000)*(1+self.returns) 
-        # 如果benchmark没有则默认取等权指数
-        if type(benchmark) == type(None):
-            self.benchmark = np.exp(assess.mat_lr[which[0]][-1].cumsum())
-        else:
-            self.benchmark = benchmark
-    # 计算数据
-    # 净值
-        self.net = self.returns.cumprod()
-    # 年化收益率
-        years = (self.net.index[-1]-self.net.index[0]).days/365
-        return_total = self.net[-1]/self.net[0]
-        self.return_annual = return_total**(1/years)-1
-    # 年化波动率 shrpe
-        self.std_annual = np.exp(np.std(np.log(self.returns))*np.sqrt(250)) - 1
-        self.sharpe = (self.return_annual - self.rf)/self.std_annual
-    # 回撤
-        a = np.maximum.accumulate(self.net)
-        self.drawdown = (a-self.net)/a
-    # 持仓贡献分析
-        # 各合约对组合贡献（先将contri收益率转化为对数收益率，然后按合约各自求和）
-        self.contribution = (self.contri+1).prod() -1
-        # 各合约持仓bars数量
-        self.hold_bars = (self.contri!=0).sum()
-
-# 净值曲线
-    def pnl(self, timerange=None, filename=None):
-        plt, fig, ax = matplot()
-        # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
-        if type(timerange) != type(None):
-            # 时间段内净值与基准
-            net = self.net.loc[timerange[0]:timerange[1]]
-            returns = self.returns.loc[timerange[0]:timerange[1]]
-            benchmark = self.benchmark.loc[timerange[0]:timerange[1]]
-            # 计算夏普
-            years = (timerange[1]-timerange[0]).days/365
-            return_annual = (net[-1]/net[0])**(1/years)-1
-            std_annual = np.exp(np.std(np.log(returns))*np.sqrt(250)) - 1 
-            sharpe = (return_annual - self.rf)/std_annual
-            ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
-            ax.plot(net/net[0], c='C0', label='p&l')
-        # colors of benchmark
-            colors_list = ['C4','C5','C6','C7']
-            for i in range(len(benchmark.columns)):
-                ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), 
-                        c=colors_list[i], label=benchmark.columns[i])
-        else: 
-    #评价指标
-            ax.text(0.7,0.05,'年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%'.format(
-            round(100*self.return_annual,2), round(self.sharpe,2), round(100*max(self.drawdown),2)), transform=ax.transAxes)
-        # 净值与基准
-            ax.plot(self.net, c='C0', label='策略')
-        # benchmark 匹配回测时间段
-            benchmark = self.benchmark.loc[self.net.index[0]:]
-        # colors of benchmark
-            colors_list = ['C4','C5','C6','C7']
-            for i in range(len(benchmark.columns)):
-                ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(),  c=colors_list[i], label=benchmark.columns[i])
-            plt.legend()
-            # 回撤
-            ax2 = ax.twinx()
-            ax2.fill_between(self.drawdown.index,-100*self.drawdown, 0, color='C1', alpha=0.1)
-            ax.set_ylabel('累计净值')
-            ax.set_xlabel('日期')
-            ax2.set_ylabel('回撤 (%)')
-        if type(filename) == type(None):
-            plt.savefig('pnl.png')
-        else:
-            plt.savefig(filename)
-        plt.show()
-
-# 收益分解 持有时间
-    def disassemble(self, timerange=None):
-        # 整个时间还是一段时间内
-        if type(timerange) == type(None):
-            contribution = self.contribution
-        else:
-            contri = self.contri[timerange[0]:timerange[1]]
-            contribution = (contri+1).prod() -1
-        # 去掉从贡献为0的合约 从小到大（负到正）
-        contribution = contribution[contribution!=0]
-        contribution = contribution.sort_values() 
-        # key: code    value: DateIndex
-        dict_dateindex = {}
-        for code in contribution.index:
-            dict_dateindex[code] = self.contri.index[self.contri[code] != 0]
-        return dict_dateindex
-
-# 持有时股价表现  输入市场df,合约代码和持有日期，从dict_dateindex获取
-    def hold_plot(self, market, code, dateindex):
-        plt, fig, ax = matplot()
-        # 标的收盘价
-        ax.plot(market.loc[:,code,:]['close'], c='C3', label='收盘价')
-        ax.plot(market.loc[:,code,:]['Pc'], c='C2', label='转股价值')
-        ax.set_ylabel('价格（元）')
-        ax.set_xlabel('日期')
-        y_low = min(market.loc[:,code,:]['close'].min(), market.loc[:,code,:]['Pc'].min())
-        y_high = max(market.loc[:,code,:]['close'].max(), market.loc[:,code,:]['Pc'].max()) 
-        ax.set_ylim(y_low*0.95,y_high*1.05)
-        # 持有期间绘制阴影
-        tradedate = market.reset_index()['date'].unique()
-        i = 1
-        start = 0
-        while i<len(dateindex):
-            # 连续交易日（未清仓）
-            if np.where(tradedate == dateindex[i])[0][0] == np.where(tradedate == dateindex[i-1])[0][0] + 1:
-                i += 1
-                continue
-            # 交易日不连续（换仓） 
-            else:
-                ax.fill_between(dateindex[start:i], 0, 9999, facecolor='C1', alpha=0.1)
-                start = i
-                i += 1
-        # 如果不是以交易日不连续结束结束
-        i = i-1
-        if np.where(tradedate == dateindex[i])[0][0] == np.where(tradedate == dateindex[i-1])[0][0] + 1:
-            ax.fill_between(dateindex[start:i], 0, 9999, facecolor='C1', alpha=0.1)
-        # 其他数据
-        ax2 = ax.twinx()
-        ax2.plot(market.loc[:,code,:]['premium']*100, label='转股溢价率(%)')
-        ax2.legend(loc='upper right')
-        ax.legend(loc='upper left')
-        
-        plt.savefig('hold_perform.png')
-
-# 收益分解 画图
-    def disassemble_plot(self):
-        # 去掉0，排序
-        contribution = self.contribution
-        n_total = len(contribution)
-        contribution = contribution[contribution!=0]
-        n = len(contribution)
-        contribution = contribution.sort_values()
-
-        plt, fig, ax = matplot()
-        ax.plot(contribution.values*100, c='C1')
-        ax.set_ylabel('净值贡献 (%)')
-        ax.text(0.05,0.9, '从%d只标的选取了%d只'%(n_total,n), transform=ax.transAxes)
-        ax2 = ax.twinx()
-        ax2.plot(self.hold_bars[contribution.index].values, alpha=0.3)
-        ax2.set_ylabel('持有天数') 
-        plt.savefig('disassemble.png')
-        plt.show()'''
