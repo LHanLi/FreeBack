@@ -41,7 +41,7 @@ def resample(factor, freq='month'):
     df = pd.DataFrame(factor)
     df['th'] = df.index.map(lambda x:getattr(x[0], freq))
     df['yesterday_th'] = df['th'].groupby('code').shift()
-    df = df.fillna(df.index[0][0][freq])
+    df = df.fillna(getattr(df.index[0][0], freq))
     df['after'] = df.apply(lambda x: x[0] if x.th!=x.yesterday_th else np.nan, axis=1)
     df = df.groupby('code').fillna(method='ffill')
     df = df.groupby('code').fillna(method='bfill')
