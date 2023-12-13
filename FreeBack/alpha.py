@@ -77,7 +77,7 @@ def get_market(market):
     if 'alpha-keep' not in market.columns:
         #return market, market, market[market['vol']!=0]
         #return market[market['vol']!=0], market
-        return market.copy(), market.copy()
+        return market.copy()
     else:
     ## market_price 为了防止未来函数保留alpha-keep为False的第一个记录
     #    select = market[['alpha-keep']]
@@ -107,7 +107,7 @@ def get_market(market):
     #    # 确定持仓,排除的不要
     #    #market_factor = market[market['alpha-keep']]
         market_factor = market[market['alpha-keep']]
-        return market_factor.copy(), market.copy()
+        return market_factor.copy()
 
 
 
