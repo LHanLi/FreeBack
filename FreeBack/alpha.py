@@ -63,7 +63,7 @@ def QQ(factor, date=None):
 
 
 
-########################################################### 因子检测 #################################################################
+########################################################### 单因子检测 #################################################################
 
 
 
@@ -103,7 +103,7 @@ def get_market(market):
     #            return 1
     #    select['alpha-keep_RollingSum_2'] = select.apply(lambda x: replace(x['alpha-keep']) if np.isnan(x['alpha-keep_RollingSum_2'])  else x['alpha-keep_RollingSum_2'], axis=1) 
     #    select_index =  select[select['alpha-keep'] | (select['alpha-keep_RollingSum_2']==1)].index
-    #    market_price = market.loc[select_index] 
+    #    market_price = market.loc[select_index]
     #    # 确定持仓,排除的不要
     #    #market_factor = market[market['alpha-keep']]
         market_factor = market[market['alpha-keep']]
@@ -441,6 +441,83 @@ class Portfolio():
             self.result.loc[self.periods[i]] = record
 
 
+# 因子分组计算
+# market, 分组变量1， 分组变量2， 分组数，取平均值变量(T日的未来收益)
+def FactorGroup(market, group_value0, group_value1=None,\
+        group_value0_num=5, group_value1_num=3, returns_key='f-returns'):
+    market_factor = market.copy()
+    group0 = 'group_' + group_value0
+    market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
+                                ).shift().dropna().map(lambda x: int(x*group_value0_num))
+    if group_value1==None:
+        group = market_factor.groupby([group0, 'date'])
+        result_returns = group[returns_key].mean()
+
+        plt, fig, ax = matplot()
+        ax1 = ax.twinx()
+        for i in result_returns.index.get_level_values(0).unique():
+            ax.plot(result_returns.loc[i].cumsum(), label='group %s, %.2lf'%(i, \
+                        100*np.exp(250*result_returns.loc[i].mean())-100))
+            ax1.plot(group['close'].count().loc[i], alpha=0.3)
+        ax.legend()
+        ax.set_ylabel('累计收益率（单利）')
+        ax1.set_ylabel('分组个数')
+        ax.set_xlim(market_factor.index[0][0], market_factor.index[-1][0])
+        plt.savefig('MutiFactorGroup.png')
+        return
+    # 计算指标的分组标签
+    group1 = 'group_' + group_value1
+    market_factor[group1] = Rank(market_factor[group_value1]).groupby('code'\
+                                ).shift().dropna().map(lambda x: int(x*group_value1_num))
+    # 分组
+    tradeday = market_factor.index.get_level_values(0).unique()
+    group = market_factor.groupby([group0, group1, 'date'])
+    result_returns = group[returns_key].mean()
+    result_num = group['close'].count().loc[:, :, tradeday[-20]:tradeday[-1]]
+    level0s = result_returns.index.get_level_values(0).unique()
+    level1s = result_returns.index.get_level_values(1).unique()
+    # 结果矩阵（收益率、组内个数）
+    dict_returns = {}
+    dict_num = {}
+    for level0 in level0s:
+        for level1 in level1s:
+            dict_returns[(level0, level1)] = 100*np.exp(250*result_returns.loc[level0, level1].mean())-100
+            dict_num[(level0, level1)] = result_num.loc[level0, level1].mean()
+    # 将绝对值转化为颜色
+    def color_map(x, min_r, max_r):
+        if x>0:
+            return [1,1-(x-min_r)/max_r,1-(x-min_r)/max_r]
+        elif x == 0:
+            return [1,1,1]
+        else:
+            return [1+(x-min_r)/max_r,1,1+(x-min_r)/max_r]
+    # 
+    plot = np.ones((len(level0s),len(level1s),3))
+    plt, fig, ax = matplot()
+    for level0 in range(len(level0s)):
+        for level1 in range(len(level1s)):
+            # 先列再行
+            plot[level0][level1] = color_map(dict_returns[(level0s[level0], level1s[level1])], \
+                                    0.9*min(dict_returns.values()), 1.1*max(dict_returns.values()))
+            # 先行再列
+            ax.text(level1, level0, 
+        dict_returns[(level0s[level0], level1s[level1])].round(1),
+                ha='center', va='center')
+            ax.text(level1, level0, 
+        '           ' + str(int(dict_num[(level0s[level0], level1s[level1])])),
+                ha='left', va='top', fontsize=10, color='C0')
+    ax.imshow(plot, aspect='auto')
+    ax.set(xticks=list(range(len(level1s))))
+    ax.set_xticklabels([i for i in level1s])
+    ax.set_xlabel(group1)
+    ax.set(yticks=list(range(len(level0s))))
+    ax.set_yticklabels([i for i in level0s])
+    ax.set_ylabel(group0)
+    ax.set_title('双因子分组')
+    ax.grid(False)
+    plt.savefig('MutiFactorGroup.png')
+
+
 
 ######################################################### 回归法 ####################################################################
 
@@ -609,7 +686,6 @@ class Reg():
             factor_latter = self.factor.groupby('code').shift(period).copy()
             factor_latter.name = 'latter'
             self.corr_dic[period] = pd.concat([factor_original, factor_latter], axis=1).groupby('date').corr(method='pearson').loc[:, 'original', :]['latter'].mean()
-
 
 
 
