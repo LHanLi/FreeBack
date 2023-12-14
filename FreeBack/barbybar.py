@@ -96,19 +96,19 @@ class World():
 
     # barline 时间线（run函数遍历barline）
         self.barline = self.market.index.get_level_values(0).unique()
-    # 当前bar 日期
+    # 当前bar barline中的序号和值日期
         self.bar_n = 0
         self.cur_bar = self.barline[self.bar_n]
-
     # 当前市场
         self.cur_market = self.market.loc[self.cur_bar]
-
-    # queue_order 订单队列（每个bar开始前检查策略在上一个bar发出的订单，并且执行）
+    # queue_order 存储全部订单队列
+    # 订单由两个来源 1. 来自策略（strat模块），该部分订单在策略结束后下一个呢bar中执行
+    #  2. 来自trader 该部分订单由交易员发出后立即执行
         self.queue_order = queue.Queue()
     # 交易员列表，策略可以像列表中添加交易员，一个交易员对应一个交易员函数，如果交易执行完毕则
     # 交易员栈，交易员执行顺序是先进后出，保证先提交的交易员所要提交的订单先执行
-        #self.queue_trader = queue.Queue()
-        self.stack_trader = []
+        self.queue_trader = queue.Queue()
+        #self.stack_trader = []
     # df_excute 订单执行记录（所有被执行订单会被记录到df_excute中）
         # columns:
         # 日期(订单执行），代码，买卖类型，执行价，发生数量，
@@ -177,8 +177,8 @@ class World():
         self.queue_order.put(order)
     # 提交trader函数
     def sub_trader(self, trader):
-        #self.queue_trader.put(trader)
-        self.stack_trader.append(trader)
+        self.queue_trader.put(trader)
+        #self.stack_trader.append(trader)
     # excute调用
     # 更新订单执行记录函数
     def update_order(self, order_id, excute_log):
@@ -187,6 +187,7 @@ class World():
     def update_hold(self, code, final_vol):
         self.df_hold.loc[self.cur_bar, code] = final_vol
         cur_hold = self.df_hold.loc[self.cur_bar]
+        # 当前不为0持仓
         self.cur_hold_vol = cur_hold[cur_hold != 0]
     # 更新现金函数
     def update_cash(self, cash):
@@ -273,7 +274,6 @@ class World():
     def trade_amount(self, target_amount, price='open'):
         trader = Trader('amount_trader', price)
         trader.target_amount = target_amount
-        #self.queue_trader.put(trader)
         self.sub_trader(trader)
     def runtrade_amount(self, trader):
         target_amount = trader.target_amount
@@ -314,14 +314,14 @@ class World():
             self.sell(code, sell_vol[code], trader.price)
         for code in buy_vol.keys():
             self.buy(code, buy_vol[code], trader.price)
-    # 等权/weight加权持有目标标的
+    # 等权/weight加权持有目标标的  normal 是否将权重归一化，
+    #  ifall 是否认为这是全部权重（如果持仓中出现不在权重中的代码是否清仓)
     def trade_batch(self, weight, price='open', normal=False, ifall=True):
         trader = Trader('batch_trader', price)
         trader.ifall = ifall
         if normal:
             weight = weight/weight.sum()
         trader.weight = weight
-        #self.queue_trader.put(trader)
         self.sub_trader(trader)
     def runtrade_batch(self, trader):
         # 按照执行价格计算的总资产
@@ -339,12 +339,13 @@ class World():
         buy_list = []
         for code, w in trader.weight.items():
             amount = w*net
-            # 如果不在市场中，则卖出999
+            # 当前权重与目标权重差距
+            # 如果不在市场中，则卖出1e9
             try:
                 delta = (amount - self.df_hold.loc[self.cur_bar][code]*self.cur_market.loc[code][trader.price])\
                         /self.cur_market.loc[code][trader.price]
             except:
-                delta = -999 
+                delta = -1e9 
             if delta <= 0:
                 sell_list.append((code, -delta))
             else:
@@ -382,25 +383,10 @@ class World():
 
     # 交易员
     def runtrader(self):
-        ## 执行全部queue_trader中trader
-        #savetrader = []
-        #while not self.queue_trader.empty():
-        #    trader = self.queue_trader.get()
-        #    if trader.type == 'amount_trader':
-        #        self.runtrade_amount(trader)
-        #    elif trader.type == 'batch_trader':
-        #        self.runtrade_batch(trader)
-        #    elif trader.type == 'buyhold_trader':
-        #        if self.runtrade_buyhold(trader):
-        #            savetrader.append(trader)
-        #    else:
-        #        pass
-        #for i in savetrader:
-        #    self.queue_trader.put(i)
-        # 执行全部stack_trader中的trader
+        # 执行全部queue_trader中trader
         savetrader = []
-        while len(self.stack_trader)!=0:
-            trader = self.stack_trader.pop()
+        while not self.queue_trader.empty():
+            trader = self.queue_trader.get()
             if trader.type == 'amount_trader':
                 self.runtrade_amount(trader)
             elif trader.type == 'batch_trader':
@@ -410,6 +396,26 @@ class World():
                     savetrader.append(trader)
             else:
                 pass
+            # 立即处理交易员订单
+            while not self.queue_order.empty():
+                # 接收订单
+                order = self.queue_order.get()
+                self.excute(order)
+        #for i in savetrader:
+        ##    self.queue_trader.put(i)
+        ## 执行全部stack_trader中的trader
+        #savetrader = []
+        #while len(self.stack_trader)!=0:
+        #    trader = self.stack_trader.pop()
+        #    if trader.type == 'amount_trader':
+        #        self.runtrade_amount(trader)
+        #    elif trader.type == 'batch_trader':
+        #        self.runtrade_batch(trader)
+        #    elif trader.type == 'buyhold_trader':
+        #        if self.runtrade_buyhold(trader):
+        #            savetrader.append(trader)
+        #    else:
+        #        pass
         for i in savetrader:
             self.stack_trader.append(i)
     # 执行订单部分
@@ -663,15 +669,15 @@ class World():
             self.update_cash(self.cur_cash)
             self.update_net()
 
-            # 交易员下单
-            self.log('trader sub order')
-            self.runtrader()
         # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
             self.log('excute yesterbar and trader order')
             while not self.queue_order.empty():
                 # 接收订单
                 order = self.queue_order.get()
                 self.excute(order)
+            # 交易员下单并执行
+            self.log('trader sub order')
+            self.runtrader()
         # 处理分红、股息、送股
             #self.dividend()
         # 更新过hold之后再次更新净值
@@ -711,13 +717,13 @@ class World():
             self.strategy()
         # 直接处理订单
             self.log('excute thisbar order')
-            # 交易员下单
-            self.runtrader()
         # broker处理订单（第一个bar不会处理，此时cur_hold和cur_cash为初始值）
             while not self.queue_order.empty():
                 # 接收订单
                 order = self.queue_order.get()
                 self.excute(order)
+            # 交易员下单
+            self.runtrader()
             self.update_net()
             self.log('end bar')
 
