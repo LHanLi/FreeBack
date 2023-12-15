@@ -444,11 +444,14 @@ class Portfolio():
 # 因子分组计算
 # market, 分组变量1， 分组变量2， 分组数，取平均值变量(T日的未来收益)
 def FactorGroup(market, group_value0, group_value1=None,\
-        group_value0_num=5, group_value1_num=3, returns_key='f-returns'):
+        group_value0_num=5, group_value1_num=3, returns_key='f-returns', delay=0):
     market_factor = market.copy()
-    group0 = 'group_' + group_value0
-    market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
-                                ).shift().dropna().map(lambda x: int(x*group_value0_num))
+    if type(market_factor[group_value0]) == float:
+        group0 = 'group_' + group_value0
+        market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
+                                ).shift(delay).dropna().map(lambda x: int(x*group_value0_num))
+    else:
+        group0 = group_value0
     if group_value1==None:
         group = market_factor.groupby([group0, 'date'])
         result_returns = group[returns_key].mean()
@@ -466,9 +469,12 @@ def FactorGroup(market, group_value0, group_value1=None,\
         plt.savefig('MutiFactorGroup.png')
         return
     # 计算指标的分组标签
-    group1 = 'group_' + group_value1
-    market_factor[group1] = Rank(market_factor[group_value1]).groupby('code'\
-                                ).shift().dropna().map(lambda x: int(x*group_value1_num))
+    if type(market_factor[group_value1]) == float:
+        group1 = 'group_' + group_value1
+        market_factor[group1] = Rank(market_factor[group_value1]).groupby('code'\
+                                ).shift(delay).dropna().map(lambda x: int(x*group_value1_num))
+    else:
+        group1 = group_value1
     # 分组
     tradeday = market_factor.index.get_level_values(0).unique()
     group = market_factor.groupby([group0, group1, 'date'])
