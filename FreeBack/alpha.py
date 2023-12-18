@@ -543,11 +543,10 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
     #r = r.reset_index()[['date', y_name]].set_index('date')[y_name]
     r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
 
-    df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
-
     if series:
         return df, beta, gamma, r
     else:
+        df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
         return df
     
 # 回归法
