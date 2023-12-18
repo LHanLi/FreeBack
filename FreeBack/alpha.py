@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from scipy import stats
+import statsmodels.api as sm
 from FreeBack.post import matplot
 import datetime, copy
 
@@ -532,19 +533,22 @@ def FactorGroup(market, group_value0, group_value1=None,\
 
 
 # 截面一元线性回归
-def cal_CrossReg(df_, x_name, y_name, series=False):
-    df = copy.copy(df_)
+def cal_CrossReg(df, x_name, y_name, series=False):
     name = y_name + '-' + x_name + '--alpha'
     beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
     gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
-    ##r = df.groupby('date').apply(lambda x: np.sqrt(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum()/(((gamma[x.index[0][0]]+x[x_name]*beta[x.index[0][0]] - x[y_name].mean())**2).sum() + ((x[y_name]-(gamma[x.index[0][0]] + x[x_name]*beta[x.index[0][0]]))**2).sum()))) 
-    #r = df[[x_name, y_name]].groupby('date').corr()
-    #r = r.loc[(slice(None), x_name), y_name]
-    #r = r.reset_index()[['date', y_name]].set_index('date')[y_name]
     r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
 
+    ## 使用sm模块
+    #x_name = 'close' 
+    #y_name = 'amount'
+    #result = df.groupby('date', sort=False).apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
+    #gamma = result.map(lambda x: x.params['const'])
+    #beta = result.map(lambda x: x.params[x_name])
+    #r = result.map(lambda x: np.sqrt(x.rsquared))
+
     if series:
-        return df, beta, gamma, r
+        return beta, gamma, r
     else:
         df[name] = df.groupby('date').apply(lambda x: x[y_name] - beta[x.index[0][0]]*x[x_name] - gamma[x.index[0][0]]).values
         return df
@@ -555,7 +559,7 @@ def cal_CrossReg(df_, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5, 10, 20), factor_name = 'alpha0'):
+    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0'):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
         factor = Gauss(factor)
@@ -566,8 +570,7 @@ class Reg():
         # 交易成本万3\10\30
         #   行：时间周期
         result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual return', 'sharpe', 'turnover',\
-                'comm3_r', 'comm3_s', 'comm10_r', 'comm10_s',\
-                    'comm30_r', 'comm30_s'])
+                'comm3_r', 'comm3_s', 'comm10_r', 'comm10_s'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
@@ -592,7 +595,7 @@ class Reg():
             #df_corr = df_corr.groupby('date').corr(method='spearman')
             #IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
             #IC_dict[period] = IC_series
-            df, beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
+            beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
             gamma_dict[period] = gamma
             # 因子指标
             IC_dict[period] = r
@@ -627,7 +630,8 @@ class Reg():
             weight_S = factor_S.pivot_table(name, 'date', 'code')
             weight_S = weight_S.div(weight_S.sum(axis=1), axis='rows').fillna(0)
             # 如果未调整period日后的组合权重
-            noadjust_weight = weight_S.shift(period)*(self.price/self.price.shift(period))[weight_S.columns]
+            noadjust_weight = (weight_S.shift(period)*(self.price/self.price.shift(period)))\
+                .dropna()[weight_S.columns]
             noadjust_weight = noadjust_weight.div(noadjust_weight.sum(axis=1), axis='rows').fillna(0)
             turnover_S = (abs(weight_S-noadjust_weight).sum(axis=1)).mean()/period
             turnover = ((turnover_S+turnover_L)/2).mean()*250
@@ -637,14 +641,11 @@ class Reg():
             comm3_sharpe = comm3_return/(np.sqrt(250)*beta.std()) 
             comm10_return = ((1+250*fr)*(1-10/1e4)**turnover-1)
             comm10_sharpe = comm10_return/(np.sqrt(250)*beta.std()) 
-            comm30_return = ((1+250*fr)*(1-30/1e4)**turnover-1)
-            comm30_sharpe = comm30_return/(np.sqrt(250)*beta.std()) 
             record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'ICIR':round(10*ICIR,1), \
                       'annual return':round(250*fr*100,1), \
                       'sharpe':round(np.sqrt(250)*frIR,1), 'turnover':round(turnover,1),\
                 'comm3_r':round(100*comm3_return,1), 'comm3_s':round(comm3_sharpe,1),\
-                    'comm10_r':round(100*comm10_return,1), 'comm10_s':round(comm10_sharpe,1),\
-                    'comm30_r':round(100*comm30_return,1), 'comm30_s':round(comm30_sharpe,1)}
+                    'comm10_r':round(100*comm10_return,1), 'comm10_s':round(comm10_sharpe,1)}
             result.loc[period] = record
         self.IC_dict = IC_dict
         self.fr_dict = fr_dict
