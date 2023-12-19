@@ -3,6 +3,8 @@ import numpy as np
 from scipy import stats
 import statsmodels.api as sm
 from FreeBack.post import matplot
+#from FreeBack.my_pd import parallel
+from FreeBack import my_pd
 import datetime, copy
 
 
@@ -29,7 +31,9 @@ def Gauss(factor, p=0.003, slice=False):
     if not slice:
         rank = factor.groupby('date').rank()
         continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
-        return continuous.map(lambda x: stats.norm.ppf(x))
+        def func(ser):
+            return ser.map(lambda x: stats.norm.ppf(x))
+        return my_pd.parallel(continuous, func)
     else:
         rank = factor.rank()
         continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
@@ -559,10 +563,13 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0'):
+    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0', gauss=True, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
-        factor = Gauss(factor)
+        if gauss:
+            factor = Gauss(factor)
+        else:
+            factor = Norm(factor)
         self.factor = factor
         self.factor.name = factor_name
         factor = pd.DataFrame(factor.rename('factor'))
@@ -581,20 +588,16 @@ class Reg():
         # 多空单位因子收益率组合平均换手率
         turnover_dict = {}
         for period in self.periods:
-            # 预测收益率  预测n期收益率
-            returns = (self.price.shift(-period) - self.price)/self.price
-            # 预测因子出现之后间隔n期的收益率
-            #returns = ((price.shift(-1) - price)/price).shift(1-period)
-            # 对数收益率
-            #returns = np.log(price.shift(-period)/price)-1
-            returns = returns.reset_index().melt(id_vars=['date']).sort_values(by='date').set_index(['date','code']).dropna()
+            if point: # 预测因子出现之后间隔n期的收益率
+                returns = ((self.price.shift(-1) - self.price)/self.price).shift(1-period)
+            else: # 预测收益率  预测n期收益率
+                returns = (self.price.shift(-period) - self.price)/self.price
+            returns = returns.reset_index().melt(id_vars=['date']).\
+                sort_values(by='date').set_index(['date','code']).dropna()
             # 合并df
             df_corr = pd.concat([factor, returns], axis=1).dropna()
             cross_dict[period] = df_corr
             ## 计算IC序列
-            #df_corr = df_corr.groupby('date').corr(method='spearman')
-            #IC_series = df_corr.loc[(slice(None), 'factor'), 'value']
-            #IC_dict[period] = IC_series
             beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
             gamma_dict[period] = gamma
             # 因子指标
@@ -603,10 +606,12 @@ class Reg():
             ICIR = IC/r.std()
             absIC = (abs(r)).mean()
             # 因子收益率(单位预测周期 1day)
-            fr_dict[period] = beta/period
-            fr = beta.mean()/period
-            #fr_dict[period] = beta
-            #fr = beta.mean()
+            if point:
+                fr_dict[period] = beta
+                fr = beta.mean()
+            else:
+                fr_dict[period] = beta/period
+                fr = beta.mean()/period
             frIR = fr/beta.std()
             # 换手率
             # 多头组合成分
@@ -618,7 +623,7 @@ class Reg():
             weight_L = factor_L.pivot_table(name, 'date', 'code')
             weight_L = weight_L.div(weight_L.sum(axis=1), axis='rows').fillna(0)
             # 如果未调整period日后的组合权重
-            noadjust_weight = weight_L.shift(period)*(self.price/self.price.shift(period))[weight_L.columns]
+            noadjust_weight = (weight_L.shift(period)*(self.price/self.price.shift(period)))[weight_L.columns]
             noadjust_weight = noadjust_weight.div(noadjust_weight.sum(axis=1), axis='rows').fillna(0)
             turnover_L = (abs(weight_L-noadjust_weight).sum(axis=1)).mean()/period
             # 空头组合成分
@@ -630,8 +635,7 @@ class Reg():
             weight_S = factor_S.pivot_table(name, 'date', 'code')
             weight_S = weight_S.div(weight_S.sum(axis=1), axis='rows').fillna(0)
             # 如果未调整period日后的组合权重
-            noadjust_weight = (weight_S.shift(period)*(self.price/self.price.shift(period)))\
-                .dropna()[weight_S.columns]
+            noadjust_weight = (weight_S.shift(period)*(self.price/self.price.shift(period)))[weight_S.columns]
             noadjust_weight = noadjust_weight.div(noadjust_weight.sum(axis=1), axis='rows').fillna(0)
             turnover_S = (abs(weight_S-noadjust_weight).sum(axis=1)).mean()/period
             turnover = ((turnover_S+turnover_L)/2).mean()*250
