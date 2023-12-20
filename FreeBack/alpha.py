@@ -563,7 +563,8 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0', gauss=True, point=False):
+    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0', \
+                 gauss=True, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
         if gauss:
