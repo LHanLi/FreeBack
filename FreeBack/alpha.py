@@ -451,7 +451,7 @@ class Portfolio():
 def FactorGroup(market, group_value0, group_value1=None,\
         group_value0_num=5, group_value1_num=3, returns_key='f-returns', delay=0):
     market_factor = market.copy()
-    if market_factor[group_value0].dtype == float:
+    if market_factor[group_value0].dtype in [float, np.int64]:
         group0 = 'group_' + group_value0
         market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
                                 ).shift(delay).dropna().map(lambda x: int(x*group_value0_num))
@@ -475,7 +475,7 @@ def FactorGroup(market, group_value0, group_value1=None,\
         plt.savefig('MutiFactorGroup.png')
         return
     # 计算指标的分组标签
-    if market_factor[group_value1].dtype == float:
+    if market_factor[group_value0].dtype in [float, np.int64]:
         group1 = 'group_' + group_value1
         market_factor[group1] = Rank(market_factor[group_value1]).groupby('code'\
                                 ).shift(delay).dropna().map(lambda x: int(x*group_value1_num))
@@ -494,8 +494,13 @@ def FactorGroup(market, group_value0, group_value1=None,\
     dict_num = {}
     for level0 in level0s:
         for level1 in level1s:
-            dict_returns[(level0, level1)] = 100*np.exp(250*result_returns.loc[level0, level1].mean())-100
-            dict_num[(level0, level1)] = result_num.loc[level0, level1].mean()
+            try:
+                dict_returns[(level0, level1)] = \
+                    100*np.exp(250*result_returns.loc[level0, level1].mean())-100
+                dict_num[(level0, level1)] = result_num.loc[level0, level1].mean()
+            except:
+                dict_returns[(level0, level1)] = 0
+                dict_num[(level0, level1)] = 0
     # 将绝对值转化为颜色
     def color_map(x, min_r, max_r):
         if x>0:
@@ -514,10 +519,10 @@ def FactorGroup(market, group_value0, group_value1=None,\
                                     0.9*min(dict_returns.values()), 1.1*max(dict_returns.values()))
             # 先行再列
             ax.text(level1, level0, 
-        dict_returns[(level0s[level0], level1s[level1])].round(1),
+        round(dict_returns[(level0s[level0], level1s[level1])], 1),
                 ha='center', va='center')
             ax.text(level1, level0, 
-        '           ' + str(int(dict_num[(level0s[level0], level1s[level1])])),
+        '    ' + str(int(dict_num[(level0s[level0], level1s[level1])])),
                 ha='left', va='top', fontsize=10, color='C0')
     ax.imshow(plot, aspect='auto')
     ax.set(xticks=list(range(len(level1s))))
