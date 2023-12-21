@@ -567,6 +567,7 @@ class Reg():
                  gauss=True, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
+        self.point = point
         if gauss:
             factor = Gauss(factor)
         else:
@@ -674,16 +675,25 @@ class Reg():
         ax2.legend(loc='lower right')
         ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
         plt.show() 
-    # 截面因子与收益率（散点图）
-    def cross(self, date=None, period=1):
+    # 截面因子与收益率（散点图） n为分级靠档组数
+    def cross(self, date=None, period=1, n=100):
         plt, fig, ax = matplot()
-        df_corr = self.cross_dict[period]
-        beta = self.fr_dict[period]*period
+        df_corr = self.cross_dict[period].copy()
+        if self.point:
+            beta = self.fr_dict[period]
+        else:
+            beta = self.fr_dict[period]*period
         gamma = self.gamma_dict[period]
         r = self.IC_dict[period]
         if type(date)==type(None):
-            ax.scatter(df_corr['factor'].values, df_corr['value'].values)
+            # 因子值按分位数分级靠档为n组
+            threshold = [df_corr['factor'].quantile(i/n) for i in range(n+1)]
+            label = [(i+j)/2 for i,j in zip(threshold[:-1],threshold[1:])]
+            df_corr['factor_group'] = pd.cut(df_corr['factor'], bins=threshold, labels=label)
+            factor_group = df_corr.groupby('factor_group')['value'].mean()
+            ax.scatter(factor_group.index, factor_group.values, s=4)
             ax.plot(np.linspace(-3,3,100), beta.mean()*np.linspace(-3,3,100) + gamma.mean(), c='C3')
+            plt.title('r = %.2lf beta(万) = %.2lf gamma(万) = %.2lf'%(r.mean(), beta.mean()*10000, gamma.mean()*10000))
         else:
             ax.scatter(df_corr.loc[date]['factor'], df_corr.loc[date]['value'])
             ax.plot(np.linspace(-3,3,100), beta.loc[date]*np.linspace(-3,3,100) + gamma.loc[date], c='C3')
