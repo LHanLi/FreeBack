@@ -475,7 +475,7 @@ def FactorGroup(market, group_value0, group_value1=None,\
         plt.savefig('MutiFactorGroup.png')
         return
     # 计算指标的分组标签
-    if market_factor[group_value0].dtype in [float, np.int64]:
+    if market_factor[group_value1].dtype in [float, np.int64]:
         group1 = 'group_' + group_value1
         market_factor[group1] = Rank(market_factor[group_value1]).groupby('code'\
                                 ).shift(delay).dropna().map(lambda x: int(x*group_value1_num))
