@@ -33,7 +33,11 @@ def Gauss(factor, p=0.003, slice=False):
         continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
         def func(ser):
             return ser.map(lambda x: stats.norm.ppf(x))
-        return my_pd.parallel(continuous, func)
+        result = my_pd.parallel(continuous, func)
+        # 如果所有值相同则替换为0
+        if_same = result.groupby('date').apply(lambda x: (~x.duplicated()).sum())
+        result.loc[if_same[if_same==1].index] = 0
+        return result
     else:
         rank = factor.rank()
         continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
@@ -544,17 +548,27 @@ def FactorGroup(market, group_value0, group_value1=None,\
 # 截面一元线性回归
 def cal_CrossReg(df, x_name, y_name, series=False):
     name = y_name + '-' + x_name + '--alpha'
-    beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
-    gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
-    r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
+    
+    # 解析法计算
+    #beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
+    #gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
+    #r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
 
-    ## 使用sm模块
-    #x_name = 'close' 
-    #y_name = 'amount'
-    #result = df.groupby('date', sort=False).apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
-    #gamma = result.map(lambda x: x.params['const'])
-    #beta = result.map(lambda x: x.params[x_name])
-    #r = result.map(lambda x: np.sqrt(x.rsquared))
+    # 使用sm模块
+    result = df.groupby('date', sort=False).apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
+    # 如果d[x_name]中所有数相同为C且不为零，这时params中没有const，x_name为d[y_name].mean()/C
+    # rsquared为0  
+    # 当d[x_name]全为0时，params['const']为0，params[x_name]为d[y_name].mean()
+    # rsquared可能为极小的负数
+    def func(x, name):
+        try:
+            return x.params[name]
+        except:
+            print('sm reg warning')
+            return 0
+    gamma = result.map(lambda x: func(x, 'const'))
+    beta = result.map(lambda x: func(x,x_name))
+    r = result.map(lambda x: np.sign(func(x, x_name))*np.sqrt(abs(x.rsquared)))
 
     if series:
         return beta, gamma, r
