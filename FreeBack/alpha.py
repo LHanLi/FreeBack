@@ -589,7 +589,7 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 5, 10), factor_name = 'alpha0', \
+    def __init__(self, factor, price, periods=(1, 3, 6), factor_name = 'alpha0', \
                  gauss=True, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
@@ -604,11 +604,13 @@ class Reg():
         # 输出结果 列：IC绝对值均值， IC均值， ICIR， 年化因子收益率， 年化夏普， 年化换手， 
         # 交易成本万3\10\30
         #   行：时间周期
-        result = pd.DataFrame(columns = ['absIC', 'IC', 'ICIR', 'annual return', 'sharpe', 'turnover',\
+        result = pd.DataFrame(columns = ['absIC', 'IC', 'rankIC', 'ICIR', 'annual return',\
+                     'sharpe', 'turnover',\
                 'comm3_r', 'comm3_s', 'comm10_r', 'comm10_s'])
         result.index.name='period'
         # 多周期IC\因子收益率序列
         IC_dict = {}
+        rankIC_dict = {}
         fr_dict = {}
         # 每日回归截距
         gamma_dict = {}
@@ -629,6 +631,8 @@ class Reg():
             beta, gamma, r = cal_CrossReg(df_corr, 'factor', 'value', True)
             gamma_dict[period] = gamma
             # 因子指标
+            rankIC_dict[period] = df_corr.groupby('date').corr(method='spearman')['factor'].loc[:, 'value']
+            rankIC = rankIC_dict[period].mean()
             IC_dict[period] = r
             IC = r.mean()
             ICIR = IC/r.std()
@@ -673,7 +677,8 @@ class Reg():
             comm3_sharpe = comm3_return/(np.sqrt(250)*beta.std()) 
             comm10_return = ((1+250*fr)*(1-10/1e4)**turnover-1)
             comm10_sharpe = comm10_return/(np.sqrt(250)*beta.std()) 
-            record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'ICIR':round(10*ICIR,1), \
+            record = {'absIC':round(absIC*100,1), 'IC':round(IC*100,1), 'rankIC':round(100*rankIC,1),\
+                      'ICIR':round(10*ICIR,1), \
                       'annual return':round(250*fr*100,1), \
                       'sharpe':round(np.sqrt(250)*frIR,1), 'turnover':round(turnover,1),\
                 'comm3_r':round(100*comm3_return,1), 'comm3_s':round(comm3_sharpe,1),\
