@@ -453,7 +453,8 @@ class Portfolio():
 # 因子分组计算
 # market, 分组变量1， 分组变量2， 分组数，取平均值变量(T日的未来收益)
 def FactorGroup(market, group_value0, group_value1=None,\
-        group_value0_num=5, group_value1_num=3, returns_key='f-returns', delay=0):
+        group_value0_num=5, group_value1_num=3, returns_key='f-returns', delay=0,\
+            level0s=None, level1s=None):
     market_factor = market.copy()
     if market_factor[group_value0].dtype in [float, np.int64]:
         group0 = 'group_' + group_value0
@@ -491,8 +492,10 @@ def FactorGroup(market, group_value0, group_value1=None,\
     group = market_factor.groupby([group0, group1, 'date'])
     result_returns = group[returns_key].mean()
     result_num = group['close'].count().loc[:, :, tradeday[-20]:tradeday[-1]]
-    level0s = result_returns.index.get_level_values(0).unique()
-    level1s = result_returns.index.get_level_values(1).unique()
+    if level0s==None:
+        level0s = result_returns.index.get_level_values(0).unique()
+    if level1s==None:
+        level1s = result_returns.index.get_level_values(1).unique()
     # 结果矩阵（收益率、组内个数）
     dict_returns = {}
     dict_num = {}
