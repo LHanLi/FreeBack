@@ -460,6 +460,10 @@ def FactorGroup(market, group_value0, group_value1=None,\
         group0 = 'group_' + group_value0
         market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
                                 ).shift(delay).dropna().map(lambda x: int(x*group_value0_num))
+        #threshold = [market[group_value0].quantile(i/group_value0_num) \
+        #             for i in range(group_value0_num+1)]
+        #market_factor[group0] = pd.cut(market[group_value0],\
+        #                                bins=threshold).groupby('code').shift(delay).dropna()
     else:
         group0 = group_value0
         market_factor[group0] = market_factor[group0].groupby('code').shift(delay).dropna()
