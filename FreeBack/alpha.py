@@ -644,7 +644,7 @@ class Reg():
             else:
                 fr_dict[period] = beta/period
                 fr = beta.mean()/period
-            frIR = fr/beta.std()
+            frIR = np.sqrt(period)*fr/beta.std()
             # 换手率
             # 多头组合成分
             factor_L = self.factor[self.factor>0.302].copy()
