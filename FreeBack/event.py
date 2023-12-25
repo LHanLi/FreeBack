@@ -95,6 +95,10 @@ class Event():
         net_max = net.cummax(axis=1).mean()
         net_min = net.cummin(axis=1).mean()
         net_mean = net.mean()
+        # 第0日净值是1
+        # for s in [net_max, net_min, net_mean]:
+        #     s.loc[0] = 1
+        #     s.sort_index(inplace=True)
         ax1.plot(net_mean, color='darkblue', linewidth=2.0, label='均值')
         ax1.plot(net_max, color='darkred', linewidth=2.0, label='累计最大值')
         ax1.plot(net_min, color='darkgreen', linewidth=2.0, label='累计最小值')
