@@ -1,61 +1,148 @@
+import pandas as pd
+from FreeBack.post import matplot
 
-
-
-
-
-# 在事件发生后，持有n日后(事件次bar open至+Tbar收盘价（T=0为次bar开盘至收盘的收益）)，收益率
-#dict_date:  key thscode, value list of date(事件后可以买入的日期)
-# hold_days = list(range(61))
-#df_price:   date thscode  open close
-def event_return(dict_date, df_price, hold_days):
-    # 建立dataframe 前两列为合约与日期
-    columns = ['thscode', 'date']
-    # return_1 代表持有1天，即当天(0)的收盘价与开盘价之比
-    for i in hold_days:
-        columns.append('return_%d'%(i+1))
-    df_return = pd.DataFrame(columns = columns)
-    # 每个合约
-    for i in list(dict_date.keys()):
-        # 事件日期列表
-        list_date = dict_date[i]
-        # 如果在行情数据中没有,输出，跳过
-        if(i not in df_price.thscode.unique()):
-            print('not found',i)
-            continue
-        # 筛选出此合约行情
-        df_ = df_price[df_price.thscode == i]
-        # 按日期排序
-        df_ = df_.sort_values(by = 'date')
-        df_ = df_.reset_index(drop=True)
-        # 每一次事件
-        for start_date in list_date:
-            # 公告日期为实际发布公告日期后次日，在此时可以直接买入
-            # 为交易日则直接买入 
-            if start_date in df_.date.values:
-                start = df_[df_.date == start_date]
-            # 如果不是交易日则后延
-            else:
-                # 最多尝试30天
-                try_num = 0
-                while try_num < 30:
-                    try_num += 1
-                    start_date += datetime.timedelta(1)
-                    if start_date in df_.date.values:
-                        start = df_[df_.date == start_date]
-                        break
-                # 没有找到则下一个日期或转债
-                if(try_num==30):
-                    print('fail: ', i, start_date)
-                    continue
-            # 持有到end，需存在行情数据
-            dur = [start.index[0]+dur_i for dur_i in hold_days if (start.index[0]+dur_i) < len(df_.index)]
-            end = df_.loc[dur]
-    #       公告日开盘价到持有日收盘价 收益率
-            return_list = list((end.close/start.open.values[0]).apply(lambda x: math.log(x)))
-        # 字典 value
-            dict_values = [i,start_date]
-            dict_values.extend(return_list)
-            append_dict = dict(zip(columns, dict_values))
-            df_return = df_return.append(append_dict, ignore_index=True)
+class Event():
+    '''
+    事件驱动测试
+    参数格式:
+    multi——index: date, code
+    signal: 入场信号,index格式
+    price: series
+    before: int, 事件前天数
+    after: int, 事件后天数
+    bench_type: zero:零, equal:等权
+    '''
+    def __init__(self, signal, price, before=5, after=30, bench_type='zero'):
+        self.signal = signal
+        self.price = price
+        self.before = before
+        self.after = after
+        self.bench_type = bench_type
+        self.init_param()
+    
+    def sr(self, x):
+        sr = (x - x.shift(1))/x.shift(1)
+        return sr.dropna()
         
-    return df_return
+    def init_param(self):
+        self.length = self.before + self.after
+        self.sr = self.price.groupby('code').apply(lambda x: self.sr(x)).droplevel(0).sort_index(level=0)
+        # 基准按照等权计算
+        self.bench_sr = self.sr.groupby('date').mean()
+        if self.bench_type == 'zero':
+            self.bench_sr = pd.Series(index=self.bench_sr.index)
+            self.bench_sr.fillna(0, inplace=True)
+        elif self.bench_type == 'equal':
+            self.bench_sr = self.bench_sr
+        self.sr = self.sr - self.bench_sr
+        self.sr.name = 'sr'
+        
+        signal_sr_df = pd.DataFrame(self.sr)
+        cols = [i-self.before+1 for i in range(self.length)]
+        for i in cols:
+            signal_sr_df.loc[:, i] = \
+                signal_sr_df['sr'].groupby(level='code').apply(lambda x: x.shift(-i)).droplevel(0)
+        signal_sr_df = signal_sr_df.loc[self.signal]
+        self.signal_sr_df = signal_sr_df.drop(columns=['sr'])
+        self.number = self.signal_sr_df[0].groupby(level='date').count()
+        
+        self.bench_net = (self.bench_sr + 1).cumprod()
+        self.signal_net = (self.signal_sr_df.mean(axis=0) + 1).cumprod()
+
+
+    # 每日触发信号数量, bench_type zero时没有bench
+    def draw_turnover(self):
+        plt0, fig0, ax0 = matplot()
+        num = self.number
+        index = num[num > (num.mean() + 5*num.std())].index
+        num.loc[index] = num.mean() + 5*num.std()
+        ax0.bar(num.index, num.values, color='grey', label='每日样本量')
+        plt0.legend(loc='upper left')
+        if self.bench_type != 'zero':
+            ax1 = ax0.twinx()
+            ax1.plot(self.bench_net, color='steelblue', label='基准净值')
+            plt0.legend(loc='upper right')
+        plt0.show()
+    
+    # 每日超额, 事件净值(取均值)
+    def draw_net(self):
+        plt0, fig0, ax0 = matplot()
+        sr = self.signal_sr_df.mean(axis=0)
+        ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
+        ax1 = ax0.twinx()
+        ax1.plot(self.signal_net, color='crimson', label='累计净值', linewidth=2.0)
+        fig0.legend(loc='lower center')
+        plt0.show()
+    
+    # 仅一个信号
+    # i是siganl中第i个信号
+    def draw_one_signal_net(self, i):
+        t, code = self.signal[i]
+        plt0, fig0, ax0 = matplot()
+        sr = self.signal_sr_df.loc[self.signal[i]]
+        ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
+        ax1 = ax0.twinx()
+        net = (sr + 1).cumprod()
+        ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
+        fig0.legend(loc='lower center')
+        plt0.show()
+
+
+
+
+# # 在事件发生后，持有n日后(事件次bar open至+Tbar收盘价（T=0为次bar开盘至收盘的收益）)，收益率
+# #dict_date:  key thscode, value list of date(事件后可以买入的日期)
+# # hold_days = list(range(61))
+# #df_price:   date thscode  open close
+# def event_return(dict_date, df_price, hold_days):
+#     # 建立dataframe 前两列为合约与日期
+#     columns = ['thscode', 'date']
+#     # return_1 代表持有1天，即当天(0)的收盘价与开盘价之比
+#     for i in hold_days:
+#         columns.append('return_%d'%(i+1))
+#     df_return = pd.DataFrame(columns = columns)
+#     # 每个合约
+#     for i in list(dict_date.keys()):
+#         # 事件日期列表
+#         list_date = dict_date[i]
+#         # 如果在行情数据中没有,输出，跳过
+#         if(i not in df_price.thscode.unique()):
+#             print('not found',i)
+#             continue
+#         # 筛选出此合约行情
+#         df_ = df_price[df_price.thscode == i]
+#         # 按日期排序
+#         df_ = df_.sort_values(by = 'date')
+#         df_ = df_.reset_index(drop=True)
+#         # 每一次事件
+#         for start_date in list_date:
+#             # 公告日期为实际发布公告日期后次日，在此时可以直接买入
+#             # 为交易日则直接买入 
+#             if start_date in df_.date.values:
+#                 start = df_[df_.date == start_date]
+#             # 如果不是交易日则后延
+#             else:
+#                 # 最多尝试30天
+#                 try_num = 0
+#                 while try_num < 30:
+#                     try_num += 1
+#                     start_date += datetime.timedelta(1)
+#                     if start_date in df_.date.values:
+#                         start = df_[df_.date == start_date]
+#                         break
+#                 # 没有找到则下一个日期或转债
+#                 if(try_num==30):
+#                     print('fail: ', i, start_date)
+#                     continue
+#             # 持有到end，需存在行情数据
+#             dur = [start.index[0]+dur_i for dur_i in hold_days if (start.index[0]+dur_i) < len(df_.index)]
+#             end = df_.loc[dur]
+#     #       公告日开盘价到持有日收盘价 收益率
+#             return_list = list((end.close/start.open.values[0]).apply(lambda x: math.log(x)))
+#         # 字典 value
+#             dict_values = [i,start_date]
+#             dict_values.extend(return_list)
+#             append_dict = dict(zip(columns, dict_values))
+#             df_return = df_return.append(append_dict, ignore_index=True)
+        
+#     return df_return
