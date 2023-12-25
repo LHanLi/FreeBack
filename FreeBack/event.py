@@ -47,7 +47,7 @@ class Event():
         self.number = self.signal_sr_df[0].groupby(level='date').count()
         
         self.bench_net = (self.bench_sr + 1).cumprod()
-        self.signal_net = (self.signal_sr_df.mean(axis=0) + 1).cumprod()
+        self.net = (self.signal_sr_df+1).cumprod(axis=1)
 
 
     # 每日触发信号数量, bench_type zero时没有bench
@@ -70,19 +70,45 @@ class Event():
         sr = self.signal_sr_df.mean(axis=0)
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
-        ax1.plot(self.signal_net, color='crimson', label='累计净值', linewidth=2.0)
+        net = self.net.mean()
+        ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
+    
+    # 净值累计加减一个方差
+    def draw_std_net(self):
+        plt1, fig1, ax1 = matplot()
+        net = self.net.loc[:, 1:]
+        net_mean = net.mean()
+        net_up = net_mean + self.net.std()
+        net_low = net_mean - self.net.std()
+        ax1.plot(net_mean, color='darkblue', linewidth=2.0, label='均值')
+        ax1.plot(net_up, color='darkred', linewidth=2.0, label='均值+方差')
+        ax1.plot(net_low, color='darkgreen', linewidth=2.0, label='均值-方差')
+        ax1.legend(loc='upper left')
+        plt1.show()
+    
+    # 净值累计最大值&净值最小值
+    def draw_cum_max_min(self):
+        plt1, fig1, ax1 = matplot()
+        net = self.net.loc[:, 1:]
+        net_max = net.cummax(axis=1).mean()
+        net_min = net.cummin(axis=1).mean()
+        net_mean = net.mean()
+        ax1.plot(net_mean, color='darkblue', linewidth=2.0, label='均值')
+        ax1.plot(net_max, color='darkred', linewidth=2.0, label='累计最大值')
+        ax1.plot(net_min, color='darkgreen', linewidth=2.0, label='累计最小值')
+        ax1.legend(loc='upper left')
+        plt1.show()
     
     # 仅一个信号
     # i是siganl中第i个信号
     def draw_one_signal_net(self, i):
-        t, code = self.signal[i]
         plt0, fig0, ax0 = matplot()
         sr = self.signal_sr_df.loc[self.signal[i]]
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
-        net = (sr + 1).cumprod()
+        net = self.net.loc[self.signal[i]]
         ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
