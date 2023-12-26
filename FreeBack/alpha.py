@@ -240,7 +240,8 @@ class Portfolio():
             ax.plot(returns.cumprod(), c=color_list[i], alpha=alpha_list[i],\
                     label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
             # 持有数量
-            ax2.plot(holdn, c=color_list[i], alpha=alpha_list[i], ls='--')
+            #ax2.plot(holdn, c=color_list[i], alpha=alpha_list[i], ls='--')
+            ax2.plot(holdn, c=color_list[i], alpha=0.2, ls='--')
         if not self.justdivide:
             # 等权指数
             returns = self.mat_returns[i_period][-1].loc[dateleft:dateright]
@@ -589,7 +590,7 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 3, 6), factor_name = 'alpha0', \
+    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0', \
                  gauss=True, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
