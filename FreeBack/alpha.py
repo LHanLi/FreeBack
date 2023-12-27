@@ -15,9 +15,11 @@ import datetime, copy
 
 
 # 每日全部index的因子值从小到大排序,均匀映射到(0,1)
-def Rank(factor):
+def Rank(factor, norm=False):
     # 因子排名
     rank = factor.groupby('date').rank()
+    if norm:
+        return 2*3**0.5*(rank/(rank.groupby('date').max()+1)-0.5)
     return rank/(rank.groupby('date').max()+1)
 
 # 标准化到 \mu = 0 \sigma = 1 分布
@@ -591,14 +593,14 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 class Reg():
     # factor_name为IC_series列名
     def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0', \
-                 gauss=True, point=False):
+                 gauss=False, point=False):
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         self.periods = periods
         self.point = point
         if gauss:
             factor = Gauss(factor)
         else:
-            factor = Norm(factor)
+            factor = Rank(factor, norm=True)
         self.factor = factor
         self.factor.name = factor_name
         factor = pd.DataFrame(factor.rename('factor'))
