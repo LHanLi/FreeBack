@@ -339,16 +339,16 @@ class Portfolio():
         bar_hold = [factor[(i[0]<factor['factor']) & (factor['factor']<=i[1])] for i in self.a_b]
         self.group_number = [i.groupby('date').count() for i in bar_hold]
         # 在date没有出现的code补np.nan
-        # 每个bar持仓表，如果不开启作弊则统一向后移动一个bar
-        bar_hold = [i.pivot_table('factor', 'date', 'code') for i in bar_hold]
+        bar_hold = [pd.DataFrame(i.pivot_table('factor', 'date', 'code'),\
+                                 index=self.factor.index.get_level_values(0).unique())\
+                                     for i in bar_hold]
         # 非null的持仓数量为 1/price（持仓金额相等）
-        bar_hold = [i.isnull() for i in bar_hold]
-        bar_hold = [i.replace([True,False],[0,1])*(1/self.price) for i in bar_hold]
-        bar_hold = [i.fillna(0) for i in bar_hold]
+        bar_hold = [(i.isnull().replace([True,False],[0,1])*\
+                     (1/self.price)).fillna(0) for i in bar_hold]
         # 当holdweight不为None时考虑此权重
         if type(self.holdweight) != type(None):
             bar_hold = [i*self.holdweight for i in bar_hold]
-        # matrix hold
+        # 按固定周期间隔选取持仓情况，向后填充
         mat_hold = []
         for period in self.periods:
             # 以period为周期 调整持仓的持仓表
@@ -357,7 +357,7 @@ class Portfolio():
                     for hold in bar_hold]
             list_hold = [bar_hold[i].loc[list_take_hold[i]]
                     for i in range(len(bar_hold))]
-            # 复原index
+            # 提取的index非连续，复原到原来的连续交易日index
             for hold in list_hold:
                 hold.index = bar_hold[0].index
             mat_hold.append(list_hold)
@@ -567,7 +567,7 @@ def cal_CrossReg(df, x_name, y_name, series=False):
     # 使用sm模块
     result = df.groupby('date', sort=False).apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
     # 如果d[x_name]中所有数相同为C且不为零，这时params中没有const，x_name为d[y_name].mean()/C
-    # rsquared为0  
+    # rsquared为0
     # 当d[x_name]全为0时，params['const']为0，params[x_name]为d[y_name].mean()
     # rsquared可能为极小的负数
     def func(x, name):
