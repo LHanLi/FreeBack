@@ -71,6 +71,7 @@ class Event():
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
         net = self.net.mean()
+        net = net/net.loc[0]
         ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
@@ -89,30 +90,25 @@ class Event():
         plt1.show()
     
     # 净值累计最大值&净值最小值
-    def draw_cum_max_min(self):
+    def draw_e_ratio(self):
         plt1, fig1, ax1 = matplot()
         net = self.net.loc[:, 1:]
         net_max = net.cummax(axis=1).mean()
         net_min = net.cummin(axis=1).mean()
-        net_mean = net.mean()
-        # 第0日净值是1
-        # for s in [net_max, net_min, net_mean]:
-        #     s.loc[0] = 1
-        #     s.sort_index(inplace=True)
-        ax1.plot(net_mean, color='darkblue', linewidth=2.0, label='均值')
-        ax1.plot(net_max, color='darkred', linewidth=2.0, label='累计最大值')
-        ax1.plot(net_min, color='darkgreen', linewidth=2.0, label='累计最小值')
-        ax1.legend(loc='upper left')
+        e_ratio = net_max/net_min
+        ax1.plot(e_ratio, color='darkred', linewidth=2.0)
+        ax1.set_xlabel('set_xlabel')
         plt1.show()
     
     # 仅一个信号
     # i是siganl中第i个信号
-    def draw_one_signal_net(self, i):
+    def draw_one_signal_net(self, date, code):
         plt0, fig0, ax0 = matplot()
-        sr = self.signal_sr_df.loc[self.signal[i]]
+        sr = self.signal_sr_df.loc[date, code]
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
-        net = self.net.loc[self.signal[i]]
+        net = self.net.loc[date, code]
+        net = net/net.loc[0]
         ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
