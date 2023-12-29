@@ -623,7 +623,7 @@ class Reg():
         for period in self.periods:
             if point: # 预测因子出现之后间隔n期的收益率
                 returns = ((self.price.shift(-1) - self.price)/self.price).shift(1-period)
-            else: # 预测收益率  预测n期收益率
+            else: # 预测收益率  预测n期内收益率
                 returns = (self.price.shift(-period) - self.price)/self.price
             returns = returns.reset_index().melt(id_vars=['date']).\
                 sort_values(by='date').set_index(['date','code']).dropna()
@@ -693,12 +693,6 @@ class Reg():
         self.gamma_dict = gamma_dict
         self.result = result
         display(result)
-        # 多周期平均IC序列
-        #IC_series = IC_dict[periods[0]]
-        #for period in periods[1:]:
-        #    IC_series += IC_dict[period]
-        #IC_series =  IC_series/len(periods)
-        #self.IC_series = IC_series.reset_index()[['date', 'value']].set_index('date').rename(columns={'value':factor_name})
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = matplot()
@@ -720,11 +714,15 @@ class Reg():
         gamma = self.gamma_dict[period]
         r = self.IC_dict[period]
         if type(date)==type(None):
+            # 如果因子值少于n个（因子值重复过多）则不需要分级靠档
             # 因子值按分位数分级靠档为n组
-            threshold = [df_corr['factor'].quantile(i/n) for i in range(n+1)]
-            label = [(i+j)/2 for i,j in zip(threshold[:-1],threshold[1:])]
-            df_corr['factor_group'] = pd.cut(df_corr['factor'], bins=threshold, labels=label)
-            factor_group = df_corr.groupby('factor_group')['value'].mean()
+            if len(df_corr['factor'].unique())<n:
+                factor_group = df_corr.groupby('factor')['value'].mean()
+            else:
+                threshold = [df_corr['factor'].quantile(i/n) for i in range(n+1)]
+                label = [(i+j)/2 for i,j in zip(threshold[:-1],threshold[1:])]
+                df_corr['factor_group'] = pd.cut(df_corr['factor'], bins=threshold, labels=label)
+                factor_group = df_corr.groupby('factor_group')['value'].mean()
             ax.scatter(factor_group.index, factor_group.values, s=4)
             ax.plot(np.linspace(-3,3,100), beta.mean()*np.linspace(-3,3,100) + gamma.mean(), c='C3')
             plt.title('r = %.2lf beta(万) = %.2lf gamma(万) = %.2lf'%(r.mean(), beta.mean()*10000, gamma.mean()*10000))
