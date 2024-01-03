@@ -26,6 +26,10 @@ def Rank(factor, norm=False):
 def Norm(factor):
     return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
 
+# scale 使得 sum(abs(x)) = a 
+def scale(factor, a=1):
+    return a*factor/factor.groupby('date').apply(lambda x:abs(x).sum())
+
 # 将每日的因子值转化为正态分布,开启slice选项时为仅转化一个截面
 # 通过正态分布累计概率函数的逆函数将[p,1-p]的均匀分布转化为正态分布，转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
 def Gauss(factor, p=0.003, slice=False):
