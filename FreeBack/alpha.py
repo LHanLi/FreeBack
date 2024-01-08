@@ -748,6 +748,30 @@ class Reg():
 
 
 
+'''
+因子中性化函数
+market: index格式为date,code
+col1: str 被中心化列名
+col2: str 中心化参考列名
+group_num: int 分组数量;
+返回: seires, category
+'''
+def Factor_Neutralization(market, col1, col2, col1_group_num=5, col2_group_num=10):
+    def fun(x):
+        label1 = [i for i in range(col1_group_num)]
+        label2 = [i for i in range(col2_group_num)]
+        s = x.groupby(pd.qcut(x[col2], col2_group_num, labels=label2))\
+            .apply(lambda x: pd.qcut(x[col1], col1_group_num, labels=label1)).droplevel(0)
+        return s
+
+    df = market.copy(deep=True)
+    s = df.groupby(level='date').apply(lambda x: fun(x.droplevel(0)))
+    s.name = col1 + '_de' + col2
+    return s
+    
+
+
+
 
 
 
