@@ -719,11 +719,11 @@ class Reg():
         plt, fig, ax = matplot()
         ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
         ax.legend(loc='lower left')
-        ax.legend(bbox_to_anchor=(0.2, 1.06), loc=10, ncol=1)
+        ax.legend(bbox_to_anchor=(0.17, 1.06), loc=10, ncol=1)
         ax2 = ax.twinx()
         ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率（右）', c='C1')
         #ax2.legend(loc='lower right')
-        ax2.legend(bbox_to_anchor=(0.75, 1.06), loc=10, ncol=1)
+        ax2.legend(bbox_to_anchor=(0.78, 1.06), loc=10, ncol=1)
         ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
         plt.show() 
     # 截面因子与收益率（散点图） n为分级靠档组数
