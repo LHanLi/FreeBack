@@ -22,7 +22,7 @@ class Event():
     
     def sr(self, x):
         sr = (x - x.shift(1))/x.shift(1)
-        return sr.dropna()
+        return sr
         
     def init_param(self):
         self.length = self.before + self.after
