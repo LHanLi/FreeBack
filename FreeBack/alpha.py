@@ -244,7 +244,7 @@ class Portfolio():
             returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
             #ax.plot(returns.cumprod(), label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
             ax.plot(returns.cumprod(), c=color_list[i], alpha=alpha_list[i],\
-                    label=str(self.a_b[i])+' 换手率=%.1f'%(turnover.mean()*250))
+                    label=str(self.a_b[i])+' 换手=%.1f'%(turnover.mean()*250))
             # 持有数量
             #ax2.plot(holdn, c=color_list[i], alpha=alpha_list[i], ls='--')
             ax2.plot(holdn, c=color_list[i], alpha=0.2, ls='--')
@@ -254,12 +254,13 @@ class Portfolio():
             turnover = self.mat_turnover[i_period][-1].loc[dateleft:dateright]
             returns = (1-turnover.shift().fillna(0)*cost/10000)*(1+returns)
             ax.plot(returns.cumprod(), c='C1',\
-                    label='等权指数 '+' 换手率=%.1f'%(turnover.mean()*250))
-        ax.legend()
+                    label='等权指数 '+' 换手=%.1f'%(turnover.mean()*250))
+        #ax.legend()
+        ax.legend(bbox_to_anchor=(0.5, -0.6), loc=8, ncol=2)
         ax.set_title('调整频率: %d 日'%self.periods[i_period])
         ax.set_ylabel('累计净值')
         ax.set_xlim(dateleft, dateright)
-        ax.set_xlabel('日期')
+        #ax.set_xlabel('日期')
         ax2.set_ylabel('持有数量')
         plt.gcf().autofmt_xdate()
         plt.savefig("HoldReturn.png")
@@ -714,13 +715,15 @@ class Reg():
         self.result = result
         display(result)
     # 因子收益率
-    def factor_return(self, period=1, rolling_period=20):
+    def factor_return(self, period=1, rolling_period=250):
         plt, fig, ax = matplot()
         ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
         ax.legend(loc='lower left')
+        ax.legend(bbox_to_anchor=(0.2, 1.06), loc=10, ncol=1)
         ax2 = ax.twinx()
-        ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率', c='C1')
-        ax2.legend(loc='lower right')
+        ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率（右）', c='C1')
+        #ax2.legend(loc='lower right')
+        ax2.legend(bbox_to_anchor=(0.75, 1.06), loc=10, ncol=1)
         ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
         plt.show() 
     # 截面因子与收益率（散点图） n为分级靠档组数
