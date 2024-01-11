@@ -256,7 +256,12 @@ class Portfolio():
             ax.plot(returns.cumprod(), c='C1',\
                     label='等权指数 '+' 换手=%.1f'%(turnover.mean()*250))
         #ax.legend()
-        ax.legend(bbox_to_anchor=(0.5, -0.6), loc=8, ncol=2)
+        if number<8:
+            ax.legend(bbox_to_anchor=(0.5, -0.55), loc=8, ncol=2)
+        elif number<10:
+            ax.legend(bbox_to_anchor=(0.5, -0.65), loc=8, ncol=2)
+        else:
+            ax.legend(bbox_to_anchor=(0.5, -0.7), loc=8, ncol=2)
         ax.set_title('调整频率: %d 日'%self.periods[i_period])
         ax.set_ylabel('累计净值')
         ax.set_xlim(dateleft, dateright)
