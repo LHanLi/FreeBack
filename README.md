@@ -1,4 +1,4 @@
-# -----------------------FreeBack----------------------
+# -------------------------FreeBack----------------------
 
 **barbybar**： 事件驱动回测
 
@@ -8,7 +8,7 @@
 
 **post**： 后处理模块
 
-# --------------------INSTALL-------------------------
+# -----------------------INSTALL-------------------------
 Manual:     
 
               git clone https://github.com/LHanLi/FreeBack.git
@@ -21,4 +21,4 @@ Automatic:
 
             pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
 
-# -----------------Hello world------------------------
+# ---------------------Hello world------------------------
