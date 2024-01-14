@@ -1,12 +1,14 @@
-# ---------FreeBack---------------
+# -----------------------FreeBack------------------------
 
-alpha: 因子测试及检验
+**barbybar**： 事件驱动回测
 
-barbybar： 事件驱动回测
+**alpha**: 因子测试及检验
 
-post： 后处理模块
+**event**：事件测试
 
-# -------INSTALL--------------
+**post**： 后处理模块
+
+# -----------------------INSTALL-------------------------
 Manual:     
 
               git clone https://github.com/LHanLi/FreeBack.git
@@ -19,4 +21,4 @@ Automatic:
 
             pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
 
-# -----------Hello world------------------------
+# ----------------------Hello world-----------------------
