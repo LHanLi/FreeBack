@@ -193,6 +193,7 @@ class Post():
         from matplotlib.colors import LinearSegmentedColormap
 
         # 净值曲线
+        self.abs_net = self.world.series_net
         self.net = self.world.series_net/self.world.series_net.iloc[0]
         self.returns = self.net/self.net.shift() - 1
         self.lr = np.log(self.returns + 1)
@@ -224,7 +225,10 @@ class Post():
         self.turnover = turnover.mean()*250
         # 超额收益 默认第一个benchmark
         self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
-        
+
+        # 逐笔交易信息
+        self.trade()
+
         # details 表格
         win = self.lr[self.lr>0]
         loss = self.lr[self.lr<0]
@@ -533,27 +537,21 @@ class Post():
         Close_amount = Close_amount.reset_index().set_index(['date', 'code', 'unique'])[0]
         # 每次交易盈亏（当前交易结束的现金流-上一次交易结束的现金流 ）
         self.Close_amount = Close_amount - Close_amount.groupby('code').shift().fillna(0)
-        self.trade_pnl = self.Close_amount.reset_index()[['date', 'code', 0]].set_index([\
+        trade_pnl = self.Close_amount.reset_index()[['date', 'code', 0]].set_index([\
                                 'date', 'code'])[0]
+        self.trade_pnl = trade_pnl.sort_values()/self.abs_net
         # 筛出同月数据
         trades = self.Close_amount.reset_index()
         trades['month'] = trades['date'].apply(lambda x: x - datetime.timedelta(x.day-1)) 
         trades = trades[['month', 0]]
-        trades = trades.set_index('month')
+        self.trades = trades.set_index('month')
 
-        # 月度盈利（亏损）交易的次数与平均盈利（亏损）。
-        trades_win = trades > 0
-        trades_loss = trades < 0
-        count_win = trades_win.groupby('month').sum()
-        count_loss = trades_loss.groupby('month').sum()
-#        mean_win = trades[trades_win[0]].groupby('month').mean()
-#        mean_loss = trades[trades_loss[0]].groupby('month').mean()
-        # 月度胜率和盈亏比
-        self.month_winrate = count_win/(count_win + count_loss)
-#        self.month_odds = -mean_win/mean_loss
         # 总体数据
-        self.winrate = trades_win.sum().values[0]/len(trades)
-        self.odds = -(trades[trades_win[0]].mean()/trades[trades_loss[0]].mean()).values[0]
+        self.trades_win = self.trades > 0
+        self.trades_loss = self.trades < 0
+        self.winrate = self.trades_win.sum().values[0]/len(self.trades)
+        self.odds = -(self.trades[self.trades_win[0]].mean()/self.trades[self.trades_loss[0]].mean()).values[0]
+    def trade_plot(self):
         # 交易次数
         Close_count = self.Close_amount.reset_index()[['date',0]].set_index('date')
         Close_count = Close_count.groupby('date').count().cumsum()
@@ -566,6 +564,14 @@ class Post():
         plt.savefig('trade.png')
         plt.show()
     def trade_monthly(self):
+        # 月度盈利（亏损）交易的次数与平均盈利（亏损）。
+        count_win = self.trades_win.groupby('month').sum()
+        count_loss = self.trades_loss.groupby('month').sum()
+#        mean_win = trades[trades_win[0]].groupby('month').mean()
+#        mean_loss = trades[trades_loss[0]].groupby('month').mean()
+        # 月度胜率和盈亏比
+        self.month_winrate = count_win/(count_win + count_loss)
+#        self.month_odds = -mean_win/mean_loss
         plt,fig,ax = month_thermal(self.month_winrate, 0.5)
         plt.savefig('trade_monthly.png') 
         plt.show()
