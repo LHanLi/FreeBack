@@ -71,7 +71,7 @@ class Event():
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
         net = self.net.mean()
-        net = net/net.loc[0]
+        net = net/net.loc[1]
         ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
@@ -108,7 +108,7 @@ class Event():
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
         net = self.net.loc[date, code]
-        net = net/net.loc[0]
+        net = net/net.loc[1]
         ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
         fig0.legend(loc='lower center')
         plt0.show()
