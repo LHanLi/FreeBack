@@ -722,7 +722,12 @@ class Reg():
     # 因子收益率
     def factor_return(self, period=1, rolling_period=250):
         plt, fig, ax = matplot()
-        ax.plot(250*self.fr_dict[period].cumsum(), label='累计因子收益率', c='C0')
+        cumsum_fr = 250*self.fr_dict[period].cumsum()
+        ax.plot(cumsum_fr, label='累计因子收益率', c='C0')
+        ax.plot(cumsum_fr.rolling(20).min(),\
+                 alpha=0.5, c='C2')
+        ax.plot(cumsum_fr.rolling(20).max(),\
+                  alpha=0.5, c='C3')
         ax.legend(loc='lower left')
         ax.legend(bbox_to_anchor=(0.17, 1.06), loc=10, ncol=1)
         ax2 = ax.twinx()
