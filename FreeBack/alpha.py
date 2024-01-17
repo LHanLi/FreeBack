@@ -720,7 +720,7 @@ class Reg():
         self.result = result
         display(result)
     # 因子收益率
-    def factor_return(self, period=1, rolling_period=250):
+    def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = matplot()
         cumsum_fr = 250*self.fr_dict[period].cumsum()
         ax.plot(cumsum_fr, label='累计因子收益率', c='C0')
