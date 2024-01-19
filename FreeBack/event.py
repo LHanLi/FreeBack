@@ -1,5 +1,7 @@
 import pandas as pd
 from FreeBack.post import matplot
+from yaya_quant.re.my_pd import parallel_group
+
 
 class Event():
     '''
@@ -12,11 +14,12 @@ class Event():
     after: int, 事件后天数
     bench_type: zero:零, equal:等权
     '''
-    def __init__(self, signal, price, before=5, after=30, bench_type='zero'):
+    def __init__(self, signal, price, before=5, after=30, bench_type='zero', n_core=6):
         self.signal = signal
         self.price = price
         self.before = before
         self.after = after
+        self.n_core = n_core
         self.bench_type = bench_type
         self.init_param()
     
@@ -25,6 +28,12 @@ class Event():
         return sr
         
     def init_param(self):
+        def fun1(x):
+            r = pd.DataFrame()
+            for i in cols:
+                r.loc[:, i] = x.shift(-i)
+            return r
+
         self.length = self.before + self.after
         self.sr = self.price.groupby('code').apply(lambda x: self.sr(x)).droplevel(0).sort_index(level=0)
         # 基准按照等权计算
@@ -36,14 +45,8 @@ class Event():
             self.bench_sr = self.bench_sr
         self.sr = self.sr - self.bench_sr
         self.sr.name = 'sr'
-        
-        signal_sr_df = pd.DataFrame(self.sr)
         cols = [i-self.before+1 for i in range(self.length)]
-        for i in cols:
-            signal_sr_df.loc[:, i] = \
-                signal_sr_df['sr'].groupby(level='code').apply(lambda x: x.shift(-i)).droplevel(0)
-        signal_sr_df = signal_sr_df.loc[self.signal]
-        self.signal_sr_df = signal_sr_df.drop(columns=['sr'])
+        self.signal_sr_df = parallel_group(self.sr, fun1, n_core=self.n_core).loc[self.signal]
         self.number = self.signal_sr_df[0].groupby(level='date').count()
         
         self.bench_net = (self.bench_sr + 1).cumprod()
