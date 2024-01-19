@@ -607,8 +607,8 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0', \
-                 gauss=False, point=False):
+    def __init__(self, factor, price, periods=(1, 2, 3, 4, 5), factor_name = 'alpha0', \
+                 gauss=False, point=True):
         #import time
         #start = time.time()
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
