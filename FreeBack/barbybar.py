@@ -572,9 +572,9 @@ class World():
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
                 if code_type == 'option':
-                    comm_cost = abs(vol*code_comm)
+                    comm_cost = abs(vol)*code_comm
                 else:
-                    comm_cost = abs(vol*price*code_comm)
+                    comm_cost = abs(vol*price)*code_comm
                 cur_cash_ = cur_cash_ - comm_cost
                 # 订单执行记录
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
@@ -588,9 +588,9 @@ class World():
                 final_vol = self.df_hold.iloc[-1][order.code] - vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
                 if code_type.split('_')[-1]== 'option' or code_type.split('_')[-1]== 'future':
-                    comm_cost = abs(vol*code_comm)
+                    comm_cost = abs(vol)*code_comm
                 else:
-                    comm_cost = abs(vol*price*code_comm)
+                    comm_cost = abs(vol*price)*code_comm
                 cur_cash_ = cur_cash_ - comm_cost
                 excute_log = {'date':self.cur_bar, 'code':order.code, 'BuyOrSell':order.type,
                         'price':price, 'occurance_vol':vol, 'occurance_amount':vol*price, 
