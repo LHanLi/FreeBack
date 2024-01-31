@@ -97,14 +97,13 @@ def month_thermal(period_value, color_threshold=0):
     return plt, fig, ax
 
 # 月度收益热力图    输入对数收益率的series 
-def plot_thermal(series_returns):
-    df_returns = series_returns
+def plot_thermal(df_returns):
     # 先转化为对数收益率
-    df_lr = df_returns.apply(lambda x: np.log(x+1))
-    df_lr = df_lr.reset_index()
+    #df_lr = df_returns.apply(lambda x: np.log(x+1))
+    df_lr = df_returns.reset_index()
     # 筛出同月数据
-    df_lr['month'] = df_lr['date'].apply(lambda x: x - datetime.timedelta(x.day-1)) 
-    df_lr = df_lr[['month', 0]]
+    df_lr['month'] = df_lr['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
+    df_lr = df_lr[['month', df_returns.name]]
     df_lr = df_lr.set_index('month')
     # 月度收益 %
     period_return = (np.exp(df_lr.groupby('month').sum()) - 1)*100
