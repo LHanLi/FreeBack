@@ -37,6 +37,8 @@ class Trader():
     code = None
     vol = None
     order_id = None
+    # type: exchange_trader
+    exchange = None  # ([],[])
     # 默认开盘价执行
     def __init__(self, type, price='open'):
         self.type = type
@@ -44,7 +46,7 @@ class Trader():
 
 
 class World():
-# 初始化  market(DataFrame)， 初始资金， 交易成本（万），
+# 初始化参数：  market(DataFrame)， 初始资金， 交易成本（万），
 # 单根k线最大成交量限制， 
 # 交易证券类型 字典 code映射到'convertibe'、'stock'等
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
@@ -355,6 +357,24 @@ class World():
             self.sell(task[0], task[1], trader.price)
         for task in buy_list:
             self.buy(task[0], task[1], trader.price)
+    # 替换现有持仓
+    def trade_exchange(self, exchange, price='open', ifshowhand=True):
+        trader = Trader('exchange_trader', price)
+        trader.exchange = exchange
+        trader.ifshowhand = ifshowhand
+        self.sub_trader(trader)
+    def runtrade_exchange(self, trader):
+        cash = 0
+        for code in trader.exchange[0]:
+            self.sell(code, self.cur_hold_vol[code], trader.price)
+            cash += self.cur_hold_vol[code]*self.cur_market[trader.price][code]
+        if trader.ifshowhand:
+            cash += self.cur_cash
+        for code in trader.exchange[1]:
+            self.buy(code, \
+                cash/len(trader.exchange[1])/self.cur_market[trader.price][code],\
+                     trader.price)
+
     # 买入持有固定时间
     def trade_buyhold(self, code, vol, holdtime):
         trader = Trader('buyhold_trader')
@@ -391,6 +411,8 @@ class World():
                 self.runtrade_amount(trader)
             elif trader.type == 'batch_trader':
                 self.runtrade_batch(trader)
+            elif trader.type == 'exchange_trader':
+                self.runtrade_exchange(trader)
             elif trader.type == 'buyhold_trader':
                 if self.runtrade_buyhold(trader):
                     savetrader.append(trader)
