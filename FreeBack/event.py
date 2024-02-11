@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from FreeBack.post import matplot
 from yaya_quant.re.my_pd import parallel_group
 
@@ -57,7 +58,7 @@ class Event():
     def fast_init(self):
         self.length = self.before + self.after
         self.sr = (self.price/self.price.groupby('code').shift() - 1).fillna(0)
-        # 基准按照等权计算
+        # 基准收益率，默认为0
         self.bench_sr = self.sr.groupby('date').mean()
         if self.bench_type == 'zero':
             self.bench_sr = pd.Series(index=self.bench_sr.index)
@@ -70,7 +71,7 @@ class Event():
         cols = [i-self.before+1 for i in range(self.length)]
         signal_sr_df = pd.concat([self.sr.groupby('code').shift(-i) for i in cols], axis=1)
         signal_sr_df.columns = cols
-        signal_sr_df = signal_sr_df.loc[self.signal].copy()
+        self.signal_sr_df = signal_sr_df.loc[self.signal].copy()
         self.signal_sr_df.fillna(0, inplace=True)
         # 触发次数
         self.number = self.signal_sr_df[0].groupby(level='date').count()
@@ -81,15 +82,17 @@ class Event():
     # 每日触发信号数量, bench_type zero时没有bench
     def draw_turnover(self):
         plt0, fig0, ax0 = matplot()
+        ax1 = ax0.twinx()
         num = self.number
+        ax1.plot(num.cumsum(), color='C2', label='累计样本量（右）')
+        # 触发次数过多的截断
         index = num[num > (num.mean() + 5*num.std())].index
         num.loc[index] = num.mean() + 5*num.std()
         ax0.bar(num.index, num.values, color='grey', label='每日样本量')
-        plt0.legend(loc='upper left')
         if self.bench_type != 'zero':
-            ax1 = ax0.twinx()
-            ax1.plot(self.bench_net, color='steelblue', label='基准净值')
-            plt0.legend(loc='upper right')
+            ax1.plot(self.bench_net, color='steelblue', label='基准净值（右）')
+        #fig0.legend(bbox_to_anchor=(0.5, 0), loc=10, ncol=2)
+        fig0.legend(loc='lower center', ncol=2)
         plt0.show()
     
     # 每日超额, 事件净值(取均值)
@@ -100,10 +103,45 @@ class Event():
         ax1 = ax0.twinx()
         net = self.net.mean()
         net = net/net.loc[1]
-        ax1.plot(net, color='crimson', label='累计净值', linewidth=2.0)
-        fig0.legend(loc='lower center')
+        ax1.plot(net, color='crimson', label='累计净值（右）', linewidth=2.0)
+        ax1.hlines(1, sr.index[0], sr.index[-1], colors='k', linestyles='--')
+        fig0.legend(loc='lower center', ncol=2)
         plt0.show()
     
+    def draw_Kelly(self, direct='long'):
+        direct = 'short'
+        # 信号触发后价格变化结果
+        trade_result = (self.signal_sr_df.iloc[:, self.before+1:]+1).cumprod(axis=1)-1
+        # 胜率
+        winrate = (trade_result>0).sum()/len(trade_result.index)
+        # 赔率 按最大值
+        win = (trade_result*(trade_result>0)).replace(0, np.nan).max()
+        loss = (abs(trade_result)*(trade_result<0)).replace(0, np.nan).max()
+        odds = win/(loss+win)
+        # 根据交易多空修改赔率胜率
+        if direct=='short':
+            win,loss = loss,win
+            odds = win/(loss+win)
+            winrate = 1-winrate
+        ## Kelly公式确定仓位，负仓位为0
+        ## 收益率分布
+        ##plt, fig, ax = post.matplot()
+        ##sns.histplot(trade_result[2])
+        ##plt.show()
+        position = (winrate*win - (1-winrate)*loss)/(win*loss)
+        position[position<0] = 0
+        # 作图
+        plt, fig, ax = post.matplot()
+        ax.plot(100*winrate, c='C2', label='胜率')
+        ax.plot(100*odds, c='C0', label='赔率')
+        ax1 = ax.twinx()
+        ax1.plot(position, c='C3', label='最佳仓位')
+        ax.set_ylabel('（%）')
+        ax.set_xlabel('bar')
+        fig.legend(loc='lower center', ncol=3)
+        plt.show()
+
+
     # 净值累计加减一个方差
     def draw_std_net(self):
         plt1, fig1, ax1 = matplot()
