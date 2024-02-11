@@ -14,14 +14,17 @@ class Event():
     after: int, 事件后天数
     bench_type: zero:零, equal:等权
     '''
-    def __init__(self, signal, price, before=5, after=30, bench_type='zero', n_core=6):
+    def __init__(self, signal, price, before=5, after=30, bench_type='zero', n_core=6, fast=True):
         self.signal = signal
         self.price = price
         self.before = before
         self.after = after
         self.n_core = n_core
         self.bench_type = bench_type
-        self.init_param()
+        if fast:
+            self.fast_init()
+        else:
+            self.init_param()
     
     def sr(self, x):
         sr = (x - x.shift(1))/x.shift(1)
@@ -48,10 +51,32 @@ class Event():
         cols = [i-self.before+1 for i in range(self.length)]
         self.signal_sr_df = parallel_group(self.sr, fun1, n_core=self.n_core).loc[self.signal]
         self.number = self.signal_sr_df[0].groupby(level='date').count()
-        
         self.bench_net = (self.bench_sr + 1).cumprod()
         self.net = (self.signal_sr_df+1).cumprod(axis=1)
 
+    def fast_init(self):
+        self.length = self.before + self.after
+        self.sr = (self.price/self.price.groupby('code').shift() - 1).fillna(0)
+        # 基准按照等权计算
+        self.bench_sr = self.sr.groupby('date').mean()
+        if self.bench_type == 'zero':
+            self.bench_sr = pd.Series(index=self.bench_sr.index)
+            self.bench_sr.fillna(0, inplace=True)
+        elif self.bench_type == 'equal':
+            self.bench_sr = self.bench_sr
+        self.sr = self.sr - self.bench_sr
+        self.sr.name = 'sr'
+        # 前后观察收益率
+        cols = [i-self.before+1 for i in range(self.length)]
+        signal_sr_df = pd.concat([self.sr.groupby('code').shift(-i) for i in cols], axis=1)
+        signal_sr_df.columns = cols
+        signal_sr_df = signal_sr_df.loc[self.signal].copy()
+        self.signal_sr_df.fillna(0, inplace=True)
+        # 触发次数
+        self.number = self.signal_sr_df[0].groupby(level='date').count()
+        # 净值
+        self.bench_net = (self.bench_sr + 1).cumprod()
+        self.net = (self.signal_sr_df+1).cumprod(axis=1)
 
     # 每日触发信号数量, bench_type zero时没有bench
     def draw_turnover(self):
