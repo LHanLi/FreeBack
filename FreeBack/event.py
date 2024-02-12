@@ -15,13 +15,15 @@ class Event():
     after: int, 事件后天数
     bench_type: zero:零, equal:等权
     '''
-    def __init__(self, signal, price, before=5, after=30, bench_type='zero', n_core=6, fast=True):
+    def __init__(self, signal, price, before=5, after=30, bench_type='zero',\
+                  custom_bench=None, n_core=6, fast=True):
         self.signal = signal
         self.price = price
         self.before = before
         self.after = after
         self.n_core = n_core
         self.bench_type = bench_type
+        self.custom_bench = custom_bench
         if fast:
             self.fast_init()
         else:
@@ -47,6 +49,8 @@ class Event():
             self.bench_sr.fillna(0, inplace=True)
         elif self.bench_type == 'equal':
             self.bench_sr = self.bench_sr
+        if type(self.custom_bench)==type(None):
+            self.bench_sr = self.custom_bench.loc[self.bench_sr.index]
         self.sr = self.sr - self.bench_sr
         self.sr.name = 'sr'
         cols = [i-self.before+1 for i in range(self.length)]
@@ -89,8 +93,8 @@ class Event():
         index = num[num > (num.mean() + 5*num.std())].index
         num.loc[index] = num.mean() + 5*num.std()
         ax0.bar(num.index, num.values, color='grey', label='每日样本量')
-        if self.bench_type != 'zero':
-            ax1.plot(self.bench_net, color='steelblue', label='基准净值（右）')
+        #if self.bench_type != 'zero':
+            #ax1.plot(self.bench_net, color='steelblue', label='基准净值（右）')
         #fig0.legend(bbox_to_anchor=(0.5, 0), loc=10, ncol=2)
         fig0.legend(loc='lower center', ncol=2)
         plt0.show()
@@ -131,7 +135,7 @@ class Event():
         position = (winrate*win - (1-winrate)*loss)/(win*loss)
         position[position<0] = 0
         # 作图
-        plt, fig, ax = post.matplot()
+        plt, fig, ax = matplot()
         ax.plot(100*winrate, c='C2', label='胜率')
         ax.plot(100*odds, c='C0', label='赔率')
         ax1 = ax.twinx()
