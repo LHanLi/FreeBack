@@ -270,6 +270,24 @@ class Portfolio():
         plt.gcf().autofmt_xdate()
         plt.savefig("HoldReturn.png")
         plt.show()
+# 柱状图
+    def Bar(self, i_period):
+        # 按年度划分收益率
+        df_returns = pd.concat(self.mat_lr[0], axis=1)\
+            .rename(columns=dict(zip(range(len(self.a_b)), self.a_b)))
+        df_returns['year'] = df_returns.index.year
+        df_returns = np.exp(df_returns.groupby('year').sum())-1
+        # 作图
+        plt, fig, ax = matplot()
+        x = np.arange(len(df_returns))
+        width = 0.08
+        # 偏移量
+        move = np.arange(-len(self.a_b)*width/2,len(self.a_b)*width/2,width)
+        for n in range(len(self.a_b)):
+            ax.bar(np.arange(len(df_returns))+move[n], df_returns[self.a_b[n]].values,\
+                    width=width, label='%s'%(str(self.a_b[n])))
+        ax.legend(bbox_to_anchor=(0.5,-0.3), loc=10, ncol=3)
+        plt.xticks(x, list(df_returns.index), fontsize=20)
 # 各组对数收益率-等权对数收益率
     def LogCompare(self, i_period):
         plt, fig, ax = matplot()
@@ -607,7 +625,7 @@ def cal_CrossReg(df, x_name, y_name, series=False):
 # 直接market_factor标准的market以及因子column名
 class Reg():
     # factor_name为IC_series列名
-    def __init__(self, factor, price, periods=(1, 2, 3, 4, 5), factor_name = 'alpha0', \
+    def __init__(self, factor, price, periods=(1, 5, 20), factor_name = 'alpha0', \
                  gauss=False, point=True):
         #import time
         #start = time.time()
