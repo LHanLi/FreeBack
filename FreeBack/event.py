@@ -113,7 +113,6 @@ class Event():
         plt0.show()
     
     def draw_Kelly(self, direct='long'):
-        direct = 'short'
         # 信号触发后价格变化结果
         trade_result = (self.signal_sr_df.iloc[:, self.before+1:]+1).cumprod(axis=1)-1
         # 胜率
