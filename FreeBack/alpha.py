@@ -635,7 +635,7 @@ class Reg():
         if gauss:
             factor = Gauss(factor)
         else:
-            factor = Norm(factor)
+            factor = Rank(factor, norm=True)
         self.factor = factor
         self.factor.name = factor_name
         factor = pd.DataFrame(factor.rename('factor'))
