@@ -196,15 +196,22 @@ class Post():
         self.net = self.world.series_net/self.world.series_net.iloc[0]
         self.returns = self.net/self.net.shift() - 1
         self.lr = np.log(self.returns + 1)
+        # 超额收益 默认第一个benchmark
+        self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
         self.returns.index.name = 'date'
         # 评价指标
         # 年化收益率
         self.years = (self.net.index[-1]-self.net.index[0]).days/365
         self.return_total = self.net[-1]/self.net[0]
         self.return_annual = self.return_total**(1/self.years)-1
+        excess_total = np.exp(self.excess_lr.sum())
+        self.excess_return_annual = excess_total**(1/self.years)-1
         # 年化波动率 shrpe
         self.sigma = np.exp(self.lr.std())-1
         self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        # 超额年化波动率 shrpe
+        self.excess_sigma = np.exp(self.excess_lr.std())-1
+        self.excess_sharpe = (self.excess_return_annual - self.rf)/(self.excess_sigma*np.sqrt(250))
         # 回撤
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
@@ -222,8 +229,6 @@ class Post():
         #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
         turnover = (occurance_amount/self.world.series_net).fillna(0)
         self.turnover = turnover.mean()*250
-        # 超额收益 默认第一个benchmark
-        self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
 
         # 逐笔交易信息
         self.trade()
@@ -231,8 +236,6 @@ class Post():
         # details 表格
         win = self.lr[self.lr>0]
         loss = self.lr[self.lr<0]
-        excess_total = np.exp(self.excess_lr.sum())
-        excess_annual = excess_total**(1/self.years)-1
         excesswin = self.excess_lr[self.excess_lr>0]
         excessloss = self.excess_lr[self.excess_lr<0]
         # 下行波动率
@@ -258,8 +261,8 @@ class Post():
         # 市场波动无法解释的截距项
         self.alpha = model.params['const'] 
         #model.summary()
-        # 索提诺比率   单位下行风险的超额收益
-        self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
+        ## 索提诺比率   单位下行风险的超额收益
+        #self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
         # 特雷诺指数  单位beta的超额收益
         self.treynor  = (self.return_annual - self.rf)/self.beta
 
@@ -276,7 +279,7 @@ class Post():
         col1.loc[0] = '年化收益率（%）'
         col1.loc[1] = round(self.return_annual*100,1)
         col1.loc[2] = '年化超额收益率（%）'
-        col1.loc[3] = round(excess_annual*100,1)
+        col1.loc[3] = round(self.excess_return_annual*100,1)
         col1.loc[4] = '累计收益（%）'
         col1.loc[5] = round((self.return_total-1)*100,1)
         col1.loc[6] = '累计超额收益（%）'
@@ -312,8 +315,8 @@ class Post():
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
         col5.loc[1] = round(self.sharpe,2)
-        col5.loc[2] = '索提诺比率' 
-        col5.loc[3] = round(self.sortino,2)
+        col5.loc[2] = '超额夏普' 
+        col5.loc[3] = round(self.excess_sharpe,2)
         col5.loc[4] = '卡玛比率'
         col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
         col5.loc[6] = '无风险收益率（%）' 
