@@ -165,6 +165,9 @@ def plot_thermal(df_returns):
 
     return plt, fig, ax
 
+#class Post_lr
+
+
 # 传入barbybar运行完毕的world对象
 class Post():
     # benchmark为收益率（非对数收益率）
