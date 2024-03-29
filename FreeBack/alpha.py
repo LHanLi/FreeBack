@@ -132,7 +132,7 @@ def get_market(market):
 
 # 因子投资组合
 class Portfolio():
-# factor pd.Series, multiindex(date,code)    T日因子值 
+# factor pd.Series, multiindex(date,code)    T日因子值,数据类型为float 
 # price T日交易价格(使用后一天开盘价或者VWAP等是接近实际情况的，用来确定权重、收益率) 
 # divide 输入模式1，tuple,给出全部阈值确定连续分组； 输入模式2， list， 给出每个分组的前后阈值。
 # periods 轮动的时间间隔
