@@ -6,7 +6,7 @@ here = path.abspath(path.dirname(__file__))
 
 
 setup(name='FreeBack',
-      version='0.1',
+      version='0.0.4',
 
       description='Package for backtest',
 
@@ -14,7 +14,7 @@ setup(name='FreeBack',
       url="#",
 
       # Author
-      author="LH.Li",
+      author="LH.Li",”zzq“
       author_email='lh98lee@zju.edu.cn',
 
       license='#',
