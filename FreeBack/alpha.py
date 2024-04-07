@@ -16,11 +16,16 @@ import datetime, copy
 ####################################### 因子计算常用函数 #################################################
 #######################################################################################################
 # 无特殊说明下 factor,price的格式为pd.Series,其中index的格式为multiindex (date code)
-# Rank      每日全部index的因子值从小到大排序,均匀映射到(0,1)
-# Norm      将每日因子值在截面上标准化到 \mu = 0 \sigma = 1 分布
-# scale     使得截面上因子值满足sum(abs(x)) = 1(a) 
-# Gauss     将每日的因子值转化为正态分布
-# resample  因子降频（日频因子换月频/周频）
+# Rank      
+# 每日全部index的因子值从小到大排序,均匀映射到(0,1)
+# Norm      
+# 将每日因子值在截面上标准化到 \mu = 0 \sigma = 1 分布
+# scale     
+# 使得截面上因子值满足sum(abs(x)) = 1(a) 
+# Gauss     
+# 将每日的因子值转化为正态分布
+# resample_fill/select  
+# 因子降频（日频因子换月频/周频）
 # QQ        绘制因子分布的QQ图，观察是否符合正态分布
 
 
@@ -53,7 +58,7 @@ def Gauss(factor, p=0.003, slice=False):
         continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
         return continuous.map(lambda x: stats.norm.ppf(x))
 # 每月、每周内的因子值替换为月初、周初因子值
-def resample(factor, freq='month'):
+def resample_fill(factor, freq='month'):
     factor.name=0
     df = pd.DataFrame(factor)
     df['th'] = df.index.map(lambda x:getattr(x[0], freq))
@@ -63,6 +68,13 @@ def resample(factor, freq='month'):
     df = df.groupby('code').fillna(method='ffill')
     df = df.groupby('code').fillna(method='bfill')
     return df['after']
+# 直接只选用原数据的周初、月初值
+# 没有周一和1号的月份用下一个第一个出现的值
+def resample_select(market, freq='month'):
+    if freq=='month':
+        return market[market.index.map(lambda x:getattr(x[0], 'day'))==1]
+    elif freq=='week':
+        return market[market.index.map(lambda x:getattr(x[0], 'weekday')())==0]
 def QQ(factor, date=None):
     plt, fig, ax = matplot(w=6, d=4)
     if date==None:
