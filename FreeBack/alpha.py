@@ -7,33 +7,37 @@ from FreeBack.post import matplot
 from FreeBack import my_pd
 import datetime, copy
 
+# 该模块包含：
+# 因子计算常用函数
+# 单因子与多因子检验模块（组合法、回归法）
 
 
-########################################################### 因子计算常用函数 ############################################################
+#######################################################################################################
+####################################### 因子计算常用函数 #################################################
+#######################################################################################################
 # 无特殊说明下 factor,price的格式为pd.Series,其中index的格式为multiindex (date code)
+# Rank      每日全部index的因子值从小到大排序,均匀映射到(0,1)
+# Norm      将每日因子值在截面上标准化到 \mu = 0 \sigma = 1 分布
+# scale     使得截面上因子值满足sum(abs(x)) = 1(a) 
+# Gauss     将每日的因子值转化为正态分布
+# resample  因子降频（日频因子换月频/周频）
+# QQ        绘制因子分布的QQ图，观察是否符合正态分布
 
 
-
-# 每日全部index的因子值从小到大排序,均匀映射到(0,1)
 def Rank(factor, norm=False):
     # 因子排名
     rank = factor.groupby('date').rank()
     if norm:
         return 2*3**0.5*(rank/(rank.groupby('date').max()+1)-0.5)
     return rank/(rank.groupby('date').max()+1)
-
-# 标准化到 \mu = 0 \sigma = 1 分布
 def Norm(factor):
     return (factor - factor.groupby('date').mean())/factor.groupby('date').std()
 
-# scale 使得 sum(abs(x)) = a 
 def scale(factor, a=1):
     return a*factor/factor.groupby('date').apply(lambda x:abs(x).sum())
-
-# 将每日的因子值转化为正态分布,开启slice选项时为仅转化一个截面
 # 通过正态分布累计概率函数的逆函数将[p,1-p]的均匀分布转化为正态分布，转换为正态分布后默认产生3sigma内的样本，99.7% p=0.003
 def Gauss(factor, p=0.003, slice=False):
-    # cross选项开启代表仅有一个截面数据
+    # 开启slice选项时为仅转化一个截面启代表仅有一个截面数据
     if not slice:
         rank = factor.groupby('date').rank()
         continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
@@ -48,8 +52,6 @@ def Gauss(factor, p=0.003, slice=False):
         rank = factor.rank()
         continuous = p/2+(1-p)*(rank-1)/(rank.max()-1)
         return continuous.map(lambda x: stats.norm.ppf(x))
-
-# 因子降频（日频因子换月频/周频）
 # 每月、每周内的因子值替换为月初、周初因子值
 def resample(factor, freq='month'):
     factor.name=0
@@ -61,8 +63,6 @@ def resample(factor, freq='month'):
     df = df.groupby('code').fillna(method='ffill')
     df = df.groupby('code').fillna(method='bfill')
     return df['after']
-
-# 绘制因子分布的QQ图，观察是否符合正态分布
 def QQ(factor, date=None):
     plt, fig, ax = matplot(w=6, d=4)
     if date==None:
@@ -78,59 +78,17 @@ def QQ(factor, date=None):
 
 
 
-########################################################### 单因子检测 #################################################################
+#######################################################################################################
+######################################### 单因子检测 ####################################################
+#######################################################################################################
+# 1. 组合法， 计算各因子分层组合的收益及其他特征。
+    # Porfolio, 因子投资组合表现
+    # factorgroup
+# 2. 回归法， 假设截面上因子与未来收益率线性相关，计算该线性关系的一系列统计量。
+    # Reg
 
+########################################## 组合法 #######################################################
 
-
-# alpha-keep 为False表示该行被排除，factor来自此dataframe，在因子分组时排除，
-# 但是price需要使用全市场数据,否则alpha-keep的排除过程就会引入未来数据（比如在被踢出分组的前后收益率为nan）
-## 为了使得并行回测尽可能与事件驱动框架结果接近：
-## 1. 停牌。 当T日x停牌，因子需要对x调仓，事实上x的仓位需要一直等到x复牌才能发生调整。
-## 得到factor(确定持仓), price（确定权重）, price_return（确定收益率）分别对应的market_factor, market_price, market_return
-## 如果需要排除需要在market中添加一列“alpha-keep”为True为保留，False为排除
-def get_market(market):
-    if 'alpha-keep' not in market.columns:
-        #return market, market, market[market['vol']!=0]
-        #return market[market['vol']!=0], market
-        return market.copy()
-    else:
-    ## market_price 为了防止未来函数保留alpha-keep为False的第一个记录
-    #    select = market[['alpha-keep']]
-    #    # 获取alpha-keep的滚动和，第一次出现时记为2
-    #    # inde必须为 'code'和'date'，并且code内部的date排序
-    #    select = select.reset_index()
-    #    select = select.sort_values(by='code')
-    #    select = select.set_index(['code','date'])
-    #    select = select.sort_index(level=['code','date'])
-    #    # 计算sum
-    #    select['alpha-keep_RollingSum_2'] =  select.groupby('code', sort=False).rolling(2)['alpha-keep'].sum().values
-    #    # 将index变回 date code
-    #    select = select.reset_index()
-    #    select = select.sort_values(by='date')
-    #    select = select.set_index(['date','code'])
-    #    select = select.sort_index(level=['date','code'])
-    #    #select = my_pd.cal_RollingSum(select, 'alpha-keep', 2)
-    #    # 第一次出现的为np.nan，alpha-keep为True时改为2，否则改为1 
-    #    def replace(keep):
-    #        if keep:
-    #            return 2
-    #        else:
-    #            return 1
-    #    select['alpha-keep_RollingSum_2'] = select.apply(lambda x: replace(x['alpha-keep']) if np.isnan(x['alpha-keep_RollingSum_2'])  else x['alpha-keep_RollingSum_2'], axis=1) 
-    #    select_index =  select[select['alpha-keep'] | (select['alpha-keep_RollingSum_2']==1)].index
-    #    market_price = market.loc[select_index]
-    #    # 确定持仓,排除的不要
-    #    #market_factor = market[market['alpha-keep']]
-        market_factor = market[market['alpha-keep']]
-        return market_factor.copy()
-
-
-
-######################################################### 组合法 ####################################################################
-
-
-
-# 因子投资组合
 class Portfolio():
 # factor pd.Series, multiindex(date,code)    T日因子值,数据类型为float 
 # price T日交易价格(使用后一天开盘价或者VWAP等是接近实际情况的，用来确定权重、收益率) 
@@ -174,8 +132,9 @@ class Portfolio():
             self.holdweight = None
         # 结果dataframe 行：时间周期  列：IC、ICIR（分组计算的IC、ICIR(非rank)）、 多空组合收益、多头收益、 等权收益、
         # 考虑换手率多空收益、 夏普、 多空平均换手率
-        self.result = pd.DataFrame(columns=['group IC', 'group ICIR', 'L&S return', 'L return', 'market return', 
-                'L&S sharpe', 'L sharpe', 'market sharpe', 'real return', 'real sharpe', 'turnover'])
+        self.result = pd.DataFrame(columns=['group IC', 'group ICIR', 'L&S return', 'L return',\
+                 'market return', 'L&S sharpe', 'L sharpe', 'market sharpe', 'real return', \
+                    'real sharpe', 'turnover'])
         self.result.index.name = 'holding period'
         # 运行
         self.run(divide, periods)
@@ -270,6 +229,42 @@ class Portfolio():
         plt.gcf().autofmt_xdate()
         plt.savefig("HoldReturn.png")
         plt.show()
+# 各组对数收益率-等权对数收益率
+    def LogCompare(self, i_period):
+        if dateleft==None:
+            dateleft = self.factor.index[0][0]
+        if dateright==None:
+            dateright = self.factor.index[-1][0]
+        plt, fig, ax = matplot()
+        benchmark = self.mat_lr[i_period][-1].cumsum()
+        # 画图曲线颜色和透明度区分
+        # 等权指数不画
+        number = len(self.a_b)-1
+        number0 = int(number/2)
+        number1 = number - number0
+        #前一半为绿色，后一半为红色 （做多因子数值高组，做空因子数值低组）
+        color_list = ['C2']*number0 + ['C3']*number1
+        # 颜色越靠近中心越浅
+        alpha0 = (np.arange(number0)+1)[::-1]/number0
+        alpha1 = (np.arange(number1)+1)/number1
+        alpha_list = np.append(alpha0, alpha1)
+        for i in range(number):
+            log_return = self.mat_lr[i_period][i].cumsum()
+            ax.plot(log_return - benchmark, \
+                    label=str(self.a_b[i]) + '%.1f'%(self.mat_turnover[i_period][i].mean()*250),
+                    c=color_list[i], alpha=alpha_list[i])
+        # 因子收益
+        LS = (self.mat_lr[i_period][-2] - self.mat_lr[i_period][0]).cumsum()
+        factor_return =  100*(np.exp(LS.iloc[-1])**(365/(LS.index[-1]-LS.index[0]).days)-1) 
+        ax.plot(LS, c='C0', label='L&S  anu.{r:.2f}%'.format(r=factor_return))
+        ax.legend()
+        ax.set_title('Period: %d bar(s)'%self.periods[i_period])
+        ax.set_ylabel('Cumulative Log Return')
+        ax.set_xlabel('Date')
+        ax.set_xlim(dateleft, dateright)
+        plt.gcf().autofmt_xdate()
+        plt.savefig("LogCompare.png")
+        plt.show()
 # 柱状图
     def Bar(self, i_period):
         # 按年度划分收益率
@@ -288,36 +283,6 @@ class Portfolio():
                     width=width, label='%s'%(str(self.a_b[n])))
         ax.legend(bbox_to_anchor=(0.5,-0.3), loc=10, ncol=3)
         plt.xticks(x, list(df_returns.index), fontsize=20)
-# 各组对数收益率-等权对数收益率
-    def LogCompare(self, i_period):
-        plt, fig, ax = matplot()
-        benchmark = self.mat_lr[i_period][-1].cumsum()
-        # 画图曲线颜色和透明度区分
-        # 等权指数不画
-        number = len(self.a_b)-1
-        number0 = int(number/2)
-        number1 = number - number0
-        #前一半为绿色，后一半为红色 （做多因子数值高组，做空因子数值低组）
-        color_list = ['C2']*number0 + ['C3']*number1
-        # 颜色越靠近中心越浅
-        alpha0 = (np.arange(number0)+1)[::-1]/number0
-        alpha1 = (np.arange(number1)+1)/number1
-        alpha_list = np.append(alpha0, alpha1)
-        for i in range(number):
-            log_return = self.mat_lr[i_period][i].cumsum()
-            ax.plot(log_return - benchmark, label=str(self.a_b[i]) + '%.1f'%(self.mat_turnover[i_period][i].mean()*250),
-                    c=color_list[i], alpha=alpha_list[i])
-        # 因子收益
-        LS = (self.mat_lr[i_period][-2] - self.mat_lr[i_period][0]).cumsum()
-        factor_return =  100*(np.exp(LS.iloc[-1])**(365/(LS.index[-1]-LS.index[0]).days)-1) 
-        ax.plot(LS, c='C0', label='L&S  anu.{r:.2f}%'.format(r=factor_return))
-        ax.legend()
-        ax.set_title('Period: %d bar(s)'%self.periods[i_period])
-        ax.set_ylabel('Cumulative Log Return')
-        ax.set_xlabel('Date')
-        plt.gcf().autofmt_xdate()
-        plt.savefig("LogCompare.png")
-        plt.show()
 # 各组分组因子值阈值和数量
     def FactorThreshold(self):
         plt, fig, ax = matplot()
@@ -429,11 +394,13 @@ class Portfolio():
         for i in range(len(self.mat_weight)):
             list_weight = self.mat_weight[i]
             list_contri = self.mat_contri[i]
-            list_NoAdjustWeight = [list_weight[j].shift().fillna(0) + list_contri[j] for j in range(len(list_weight))]
+            list_NoAdjustWeight = \
+                [list_weight[j].shift().fillna(0) + list_contri[j] for j in range(len(list_weight))]
             list_NoAdjustWeight = [NoAdjustWeight.div(NoAdjustWeight.sum(axis=1), axis='rows') \
                                    for NoAdjustWeight in list_NoAdjustWeight]
             list_NoAdjustWeight = [NoAdjustWeight.fillna(0) for NoAdjustWeight in list_NoAdjustWeight]
-            list_turnover = [np.abs((list_weight[j]-list_NoAdjustWeight[j])).sum(axis=1) for j in range(len(list_weight))]
+            list_turnover = \
+                [np.abs((list_weight[j]-list_NoAdjustWeight[j])).sum(axis=1) for j in range(len(list_weight))]
             # 年化换手率
             #list_turnover = [i.mean()*250 for i in list_turnover]
             mat_turnover.append(list_turnover)
@@ -586,18 +553,9 @@ def FactorGroup(market, group_value0, group_value1=None,\
 # 截面一元线性回归
 def cal_CrossReg(df, x_name, y_name, series=False):
     name = y_name + '-' + x_name + '--alpha'
-    
-    # 解析法计算
-    #beta = df.groupby('date').apply(lambda x: ((x[y_name]-x[y_name].mean())*(x[x_name]-x[x_name].mean())).sum()/((x[x_name]-x[x_name].mean())**2).sum())
-    #gamma = df.groupby('date').apply(lambda x: x[y_name].mean() - beta[x.index[0][0]]*x[x_name].mean())
-    #r = df[[x_name, y_name]].groupby('date').corr().loc[(slice(None), x_name), y_name].reset_index()[['date', y_name]].set_index('date')[y_name]
 
     # 使用sm模块
     result = df.groupby('date', sort=False).apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
-    #def func(df):
-    #    return df.apply(lambda d: sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
-    #result =  my_pd.parallel_group(df, func, n_core=12, sort_by='date').values
-    
     
     # 如果d[x_name]中所有数相同为C且不为零，这时params中没有const，x_name为d[y_name].mean()/C
     # rsquared为0
