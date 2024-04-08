@@ -6,6 +6,7 @@ from pyecharts.commons.utils import JsCode
 
 
 # plot_data:df格式,index为datetime,必要列为close,high,low,open,vol
+# 其他列自由添加，默认绘制于主图
 # 其中vol绘制于副图 其他列为指标列，绘制于主图
 def plot_kbar(plot_data, title='个股行情'):
     # 画图大小
