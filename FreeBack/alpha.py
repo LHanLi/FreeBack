@@ -242,13 +242,16 @@ class Portfolio():
         plt.savefig("HoldReturn.png")
         plt.show()
 # 各组对数收益率-等权对数收益率
-    def LogCompare(self, i_period):
+    def LogCompare(self, i_period, dateleft=None, dateright=None, ifbench=True):
         if dateleft==None:
             dateleft = self.factor.index[0][0]
         if dateright==None:
             dateright = self.factor.index[-1][0]
         plt, fig, ax = matplot()
-        benchmark = self.mat_lr[i_period][-1].cumsum()
+        if ifbench:
+            benchmark = self.mat_lr[i_period][-1].cumsum()
+        else:
+            benchmark = 0
         # 画图曲线颜色和透明度区分
         # 等权指数不画
         number = len(self.a_b)-1
@@ -278,7 +281,7 @@ class Portfolio():
         plt.savefig("LogCompare.png")
         plt.show()
 # 柱状图
-    def Bar(self, i_period):
+    def Bar(self):
         # 按年度划分收益率
         df_returns = pd.concat(self.mat_lr[0], axis=1)\
             .rename(columns=dict(zip(range(len(self.a_b)), self.a_b)))
