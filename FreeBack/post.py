@@ -6,7 +6,15 @@ import datetime
 import statsmodels.api as sm
 from plottable import ColumnDefinition, ColDef, Table
 from matplotlib.colors import LinearSegmentedColormap
+from FreeBack.display import *
+import os
+  
+if 'output-post' in os.listdir():
+    pass
+else:
+    os.mkdir('output-post')
 
+'''
 # matplot绘图
 def matplot(r=1, c=1, sharex=False, sharey=False, w=8, d=5):
     # don't use sns style
@@ -166,8 +174,161 @@ def plot_thermal(df_returns):
                 ax.text(j_, i_, calendar[i_][j_].round(2), ha='center', va='center')
 
     return plt, fig, ax
+'''
 
-#class Post_lr
+# 仅处理收益率序列（简单收益率，非对数收益率）结果
+class SeriesPost():
+    def __init__(self, returns, benchmark=None):
+        self.returns = returns
+        self.net = (1+returns).cumprod()
+        # 无风险利率
+        self.rf = 0.03
+        # 基准
+        if type(benchmark) == type(None):
+            benchmark = pd.DataFrame(index = returns.index)
+            benchmark['zero'] = 0
+            self.benchmark = benchmark
+        self.benchmark = benchmark.loc[returns.index].fillna(0)
+        # 基准波动率
+        self.sigma_benchmark = np.exp(np.log(self.benchmark[\
+            self.benchmark.columns[0]]+1).std())-1
+        # 计算复杂指标
+        # 净值曲线
+        self.lr = np.log(self.returns + 1)
+        # 超额收益 默认第一个benchmark
+        self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
+        self.returns.index.name = 'date'
+        
+        # 评价指标
+        # 年化收益率（+1）
+        self.years = (returns.index[-1]-returns.index[0]).days/365  
+        self.return_total = (returns+1).prod()                             
+        self.return_annual = self.return_total**(1/self.years)-1    
+        excess_total = np.exp(self.excess_lr.sum())                  # 超额收益
+        self.excess_return_annual = excess_total**(1/self.years)-1
+        # 年化波动率 shrpe
+        self.sigma = np.exp(self.lr.std())-1
+        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        # 超额年化波动率 shrpe
+        self.excess_sigma = np.exp(self.excess_lr.std())-1
+        self.excess_sharpe = (self.excess_return_annual - self.rf)/(self.excess_sigma*np.sqrt(250))
+        # 回撤
+        a = np.maximum.accumulate(self.net)
+        self.drawdown = (a-self.net)/a
+    def cal_complex(self):
+        # 复杂指标 
+        win = self.lr[self.lr>0]
+        loss = self.lr[self.lr<0]
+        excesswin = self.excess_lr[self.excess_lr>0]
+        excessloss = self.excess_lr[self.excess_lr<0]
+        # 下行波动率
+        self.sigma_down = np.exp((self.lr-\
+                            self.lr.mean()).apply(lambda x: min(x,0)).std())-1
+        # 跟踪误差
+        self.sigma_alpha = np.exp(np.std(self.lr-\
+                             np.log(self.benchmark[self.benchmark.columns[0]]+1)))-1
+        # 超额回撤
+        excess_net = np.exp(self.excess_lr.fillna(0).cumsum())
+        a = np.maximum.accumulate(excess_net)
+        self.excess_drawdown = (a-excess_net)/a
+        # CAPM (无风险收益为0)
+        y = self.returns.fillna(0)
+        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
+        x = sm.add_constant(x)
+        model = sm.OLS(y, x).fit()
+        # T-M 模型(无风险收益为0)
+        y = self.returns.fillna(0)
+        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
+        x = sm.add_constant(x)
+        model = sm.OLS(y, x).fit()
+        # 市场风险暴露
+        self.beta = model.params[self.benchmark.columns[0]]
+        # 市场波动无法解释的截距项
+        self.alpha = model.params['const'] 
+        #model.summary()
+        ## 索提诺比率   单位下行风险的超额收益
+        #self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
+        # 特雷诺指数  单位beta的超额收益
+        self.treynor  = (self.return_annual - self.rf)/self.beta 
+# 净值曲线
+# 时间起止（默认全部），是否显示细节,是否自定义输出图片名称，是否显示对数，是否显示超额
+    def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False):
+        plt, fig, ax = matplot(w=10)
+        # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
+        if type(timerange) != type(None):
+            # 时间段内净值与基准
+            net = self.net.loc[timerange[0]:timerange[1]]
+            returns = self.returns.loc[timerange[0]:timerange[1]]
+            # 计算夏普
+            years = (pd.to_datetime(timerange[1])-pd.to_datetime(timerange[0])).days/365
+            return_annual = (net[-1]/net[0])**(1/years)-1
+            std_annual = returns.std()*np.sqrt(250)
+            sharpe = (return_annual - self.rf)/std_annual
+            if detail:
+                # 回撤
+                a = np.maximum.accumulate(net)
+                drawdown = (a-net)/a 
+                ax.text(0.7,0.05,'年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%\n'.format(
+                    round(100*return_annual,2), round(sharpe,2), 
+                        round(100*max(drawdown),2)), transform=ax.transAxes)
+                # 回撤
+                ax2 = ax.twinx()
+                ax2.fill_between(drawdown.index,-100*drawdown, 0, color='C1', alpha=0.1)
+                if excess:
+                    ax.plot(np.exp(self.excess_lr.loc[timerange[0]:timerange[1]].cumsum()), 
+                            c='C3', label='超额收益')
+            else:
+                ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
+            ax.plot(net/net[0], c='C0', label='p&l')
+            if type(self.benchmark) != type(None):
+                benchmark = self.benchmark.loc[timerange[0]:timerange[1]].copy()
+                benchmark.iloc[0] = 0
+        # colors of benchmark
+                colors_list = ['C4','C5','C6','C7']
+                for i in range(len(benchmark.columns)):
+                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), 
+                            c=colors_list[i], label=benchmark.columns[i])
+            if log:
+                # 对数坐标显示
+                ax.set_yscale("log")
+            ax.set_xlim(returns.index[0], returns.index[-1])
+            plt.gcf().autofmt_xdate()
+        else:
+    #评价指标
+            ax.text(0.7,0.05,'年化收益率: {}%\n夏普比率:   {}\n最大回撤:   {}%\n'.format(
+            round(100*self.return_annual,2), round(self.sharpe,2), 
+            round(100*max(self.drawdown),2)), transform=ax.transAxes)
+        # 净值与基准
+            ax.plot(self.net, c='C0', label=self.stratname)
+            if type(self.benchmark) != type(None):
+                # benchmark 匹配回测时间段, 基准从0开始
+                benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
+                benchmark.loc[self.net.index[0]] = 0
+                # colors of benchmark
+                colors_list = ['C4','C5','C6','C7']
+                for i in range(len(benchmark.columns)):
+                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), \
+                            c=colors_list[i], label=benchmark.columns[i])
+                if excess:
+                    ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
+                plt.legend(loc='upper left')
+            if log:
+                # 对数坐标显示
+                ax.set_yscale("log")
+            # 回撤
+            ax2 = ax.twinx()
+            ax2.fill_between(self.drawdown.index,-100*self.drawdown, 0, color='C1', alpha=0.1)
+            ax.set_ylabel('累计净值')
+            ax.set_xlabel('日期')
+            ax2.set_ylabel('回撤 (%)')
+            ax.set_xlim(self.net.index[0], self.net.index[-1])
+            plt.gcf().autofmt_xdate()
+        if type(filename) == type(None):
+            plt.savefig('./output-post/pnl.png')
+        else:
+            plt.savefig('./output-post/'+filename)
+        plt.show()
+
 
 
 # 传入barbybar运行完毕的world对象
@@ -600,96 +761,6 @@ class Post():
         plt.savefig('position.png')
         plt.show()
 
-
-class SeriesPost():
-    def __init__(self, returns):
-        self.returns = returns
-        # 无风险利率
-        self.rf = 0.03
-        # 基准
-        if type(benchmark) == type(None):
-            benchmark = pd.DataFrame(index = returns.index)
-            benchmark['zero'] = 0
-            self.benchmark = benchmark
-        self.benchmark = benchmark.loc[returns.index].fillna(0)
-        # 基准波动率
-        self.sigma_benchmark = np.exp(np.log(self.benchmark[\
-            self.benchmark.columns[0]]+1).std())-1
-        # 计算复杂指标
-        # 净值曲线
-        self.abs_net = self.world.series_net
-        self.net = self.world.series_net/self.world.series_net.iloc[0]
-        self.returns = self.net/self.net.shift() - 1
-        self.lr = np.log(self.returns + 1)
-        # 超额收益 默认第一个benchmark
-        self.excess_lr = self.lr  - np.log(self.benchmark[self.benchmark.columns[0]]+1)
-        self.returns.index.name = 'date'
-        # 评价指标
-        # 年化收益率
-        self.years = (self.net.index[-1]-self.net.index[0]).days/365
-        self.return_total = self.net[-1]/self.net[0]
-        self.return_annual = self.return_total**(1/self.years)-1
-        excess_total = np.exp(self.excess_lr.sum())
-        self.excess_return_annual = excess_total**(1/self.years)-1
-        # 年化波动率 shrpe
-        self.sigma = np.exp(self.lr.std())-1
-        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
-        # 超额年化波动率 shrpe
-        self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = (self.excess_return_annual - self.rf)/(self.excess_sigma*np.sqrt(250))
-        # 回撤
-        a = np.maximum.accumulate(self.net)
-        self.drawdown = (a-self.net)/a
-        # 持仓标的
-        self.df_hold = self.world.df_hold
-        held = self.world.df_hold.reset_index().melt(id_vars=['date']).set_index(['date', 'code'])
-        held = held['value'] * self.world.market['close']
-        self.held = held[(held != 0)&~np.isnan(held)]
-        # 现金
-        self.cash = self.world.series_cash
-        # 交割单
-        self.excute = self.world.df_excute.reset_index().set_index(['date', 'code', 'unique'])
-        # 换手率
-        occurance_amount = abs(self.excute['occurance_amount']).groupby('date').sum()
-        #turnover = (occurance_amount/(self.net*self.cash.iloc[0])).fillna(0)
-        turnover = (occurance_amount/self.world.series_net).fillna(0)
-        self.turnover = turnover.mean()*250
-
-        # 逐笔交易信息
-        self.trade()
-
-        # details 表格
-        win = self.lr[self.lr>0]
-        loss = self.lr[self.lr<0]
-        excesswin = self.excess_lr[self.excess_lr>0]
-        excessloss = self.excess_lr[self.excess_lr<0]
-        # 下行波动率
-        self.sigma_down = np.exp((self.lr-self.lr.mean()).apply(lambda x: min(x,0)).std())-1
-        # 跟踪误差
-        sigma_alpha = np.exp(np.std(self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)))-1
-        # 超额回撤
-        excess_net = np.exp(self.excess_lr.fillna(0).cumsum())
-        a = np.maximum.accumulate(excess_net)
-        self.excess_drawdown = (a-excess_net)/a
-        # CAPM (无风险收益为0)
-        y = self.returns.fillna(0)
-        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
-        x = sm.add_constant(x)
-        model = sm.OLS(y, x).fit()
-        # T-M 模型(无风险收益为0)
-        y = self.returns.fillna(0)
-        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
-        x = sm.add_constant(x)
-        model = sm.OLS(y, x).fit()
-        # 市场风险暴露
-        self.beta = model.params[self.benchmark.columns[0]]
-        # 市场波动无法解释的截距项
-        self.alpha = model.params['const'] 
-        #model.summary()
-        ## 索提诺比率   单位下行风险的超额收益
-        #self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
-        # 特雷诺指数  单位beta的超额收益
-        self.treynor  = (self.return_annual - self.rf)/self.beta 
 
 
 
