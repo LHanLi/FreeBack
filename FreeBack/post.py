@@ -178,7 +178,8 @@ def plot_thermal(df_returns):
 
 # 仅处理收益率序列（简单收益率，非对数收益率）结果
 class SeriesPost():
-    def __init__(self, returns, benchmark=None):
+    def __init__(self, returns, benchmark=None, stratname='策略'):
+        self.stratname = stratname
         self.returns = returns
         self.net = (1+returns).cumprod()
         # 无风险利率
@@ -300,8 +301,9 @@ class SeriesPost():
             round(100*max(self.drawdown),2)), transform=ax.transAxes)
         # 净值与基准
             ax.plot(self.net, c='C0', label=self.stratname)
-            if type(self.benchmark) != type(None):
+            if not (self.benchmark==0).any().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
+                # 如果基准是0就不绘制了
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
                 # colors of benchmark
