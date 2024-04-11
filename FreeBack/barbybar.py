@@ -316,7 +316,7 @@ class World():
             self.sell(code, sell_vol[code], trader.price)
         for code in buy_vol.keys():
             self.buy(code, buy_vol[code], trader.price)
-    # 等权/weight加权持有目标标的  normal 是否将权重归一化，
+    # 等权/weight加权持有目标标的  normal 是否将权重归一化，如果归一化则无法空仓
     #  ifall 是否认为这是全部权重（如果持仓中出现不在权重中的代码是否清仓)
     def trade_batch(self, weight, price='open', normal=False, ifall=True):
         trader = Trader('batch_trader', price)
