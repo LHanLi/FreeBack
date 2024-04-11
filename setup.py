@@ -14,7 +14,7 @@ setup(name='FreeBack',
       url="#",
 
       # Author
-      author="LH.Li,zzq"
+      author="LH.Li,zzq",
       author_email='lh98lee@zju.edu.cn',
 
       license='#',
