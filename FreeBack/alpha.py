@@ -3,9 +3,7 @@ import numpy as np
 from scipy import stats
 import statsmodels.api as sm
 from FreeBack.post import matplot
-#from FreeBack.my_pd import parallel
 from FreeBack import my_pd
-import datetime, copy
 
 # 该模块包含：
 # 因子计算常用函数

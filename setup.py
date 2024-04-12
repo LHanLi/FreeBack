@@ -9,7 +9,7 @@ setup(
     # 版本号: 第几次模块增加，第几次函数增加，第几次函数功能修改
     # (每次高级别序号增加后,低级别序号归0)
     # beta为测试版 alpha为稳定版 
-    version="3.0.0-beta",
+    version="3.0.0-alpha",
     author="LH.Li,zzq",
     author_email="lh98lee@zju.edu.cn",  
     description='Package for backtest',
@@ -18,6 +18,15 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/LHanLi/FreeBack",
     packages=find_packages(),
+    install_requires = [
+        'pandas',
+        'scipy',
+        'statsmodels',
+        'seaborn',
+        'plottable',
+        'pyecharts',
+        'numpy_ext',
+    ]
     classifiers=[
          # 该软件包仅与Python3兼容
         "Programming Language :: Python :: 3",

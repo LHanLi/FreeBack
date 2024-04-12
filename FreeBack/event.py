@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from FreeBack.post import matplot
-from yaya_quant.re.my_pd import parallel_group
+from FreeBack.my_pd import parallel_group
 
 
 class Event():
