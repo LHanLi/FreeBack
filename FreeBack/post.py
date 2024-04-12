@@ -9,10 +9,6 @@ from matplotlib.colors import LinearSegmentedColormap
 from FreeBack.display import *
 import os
   
-if 'output-post' in os.listdir():
-    pass
-else:
-    os.mkdir('output-post')
 
 '''
 # matplot绘图
@@ -325,6 +321,10 @@ class SeriesPost():
             ax2.set_ylabel('回撤 (%)')
             ax.set_xlim(self.net.index[0], self.net.index[-1])
             plt.gcf().autofmt_xdate()
+        if 'output-post' in os.listdir():
+            pass
+        else:
+            os.mkdir('output-post')
         if type(filename) == type(None):
             plt.savefig('./output-post/pnl.png')
         else:
