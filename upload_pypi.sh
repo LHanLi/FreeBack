@@ -9,5 +9,5 @@ rm -rf ./FreeBack.egg-info
 
 mypython setup.py sdist bdist_wheel
 twine check dist/*
-mypython -m twine upload dist/*
+twine upload -u __token__ -p password dist/*
 '''
