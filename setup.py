@@ -11,13 +11,13 @@ setup(name='FreeBack',
       description='Package for backtest',
 
       # URL
-      url="#",
+      url="https://github.com/LHanLi/FreeBack",
 
       # Author
       author="LH.Li,zzq",
       author_email='lh98lee@zju.edu.cn',
 
-      license='#',
+      license='License :: OSI Approved :: MIT License',
 
       packages=find_packages(),
       )
