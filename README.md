@@ -21,7 +21,11 @@
               
               python3 setup.py install --u
               
-自动安装:
+自动安装方法1:
+
+            pip install FreeBack==3.0.0b0
+
+方法2：
 
             pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
 
