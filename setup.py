@@ -26,7 +26,7 @@ setup(
         'plottable',
         'pyecharts',
         'numpy_ext',
-    ]
+    ],
     classifiers=[
          # 该软件包仅与Python3兼容
         "Programming Language :: Python :: 3",
