@@ -15,7 +15,7 @@
 # -----------------------INSTALL-------------------------
 从pypi安装:
 
-            pip install FreeBack==3.0.0b0
+            pip install FreeBack
 从github安装： pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
             python setup.py develop
 
