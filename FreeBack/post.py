@@ -174,6 +174,7 @@ def plot_thermal(df_returns):
 
 # 仅处理收益率序列（简单收益率，非对数收益率）结果
 class SeriesPost():
+    # benchmark dataframe 收益率序列
     def __init__(self, returns, benchmark=None, stratname='策略'):
         self.stratname = stratname
         self.returns = returns
