@@ -122,7 +122,8 @@ class Portfolio():
         self.norm = norm
         self.justdivide=justdivide
         # 下期收益率
-        self.returns = price.groupby('date').shift(-1)/price-1
+        returns = self.price/self.price.shift() - 1
+        self.returns = returns.fillna(0)
 #        # 先按照截面排序归一化
         if norm:
             self.factor = Rank(pd.DataFrame(factor.rename('factor')))
