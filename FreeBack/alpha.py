@@ -369,7 +369,12 @@ class Portfolio():
         #ax.set_xlabel('日期')
         ax2.set_ylabel('持有数量')
         plt.gcf().autofmt_xdate()
-        plt.savefig("HoldReturn.png")
+        if 'output' in os.listdir():
+            pass
+        else:
+            os.mkdir('output')
+        plt.savefig('./output/alpha-Portfolio-HoldReturn.png',\
+                     bbox_inches='tight')
         plt.show()
 # 各组对数收益率-等权对数收益率
     def LogCompare(self, i_period=0, dateleft=None, dateright=None, ifbench=True):
@@ -408,7 +413,12 @@ class Portfolio():
         ax.set_xlabel('Date')
         ax.set_xlim(dateleft, dateright)
         plt.gcf().autofmt_xdate()
-        plt.savefig("LogCompare.png")
+        if 'output' in os.listdir():
+            pass
+        else:
+            os.mkdir('output')
+        plt.savefig('./output/alpha-Portfolio-LogCompare.png',\
+                     bbox_inches='tight')
         plt.show()
 # 柱状图
     def Bar(self, i_period=0):
@@ -474,7 +484,12 @@ class Portfolio():
         ax.set_xlabel('Date')
         ax.set_xlim(self.returns.index[0], self.returns.index[-1])
         plt.gcf().autofmt_xdate()
-        plt.savefig("FactorThreshold.png")
+        if 'output' in os.listdir():
+            pass
+        else:
+            os.mkdir('output')
+        plt.savefig('./output/alpha-Portfolio-FactorThreshold.png',\
+                     bbox_inches='tight')
         plt.show()
 
 
