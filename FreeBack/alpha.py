@@ -101,7 +101,8 @@ def QQ(factor, date=None):
 
 class Portfolio():
 # factor 数据类型pd.Series, multiindex(date,code)   T日因子值(可以在此排除涨停板)
-# price T日交易价格(最宽松情况可以使用当日收盘价，使用后一天开盘价或者VWAP等是接近实际情况的(全市场数据即可) 
+# price 数据类型pd.Series, multiindex(date,code) T日交易价格(最宽松情况可以使用当日收盘价，\
+# 使用后一天开盘价或者VWAP等是接近实际情况的(全市场数据即可) 
 # norm 是否按照因子值的排序来对投资组合分组,默认开启。否则使用原始因子值进行分组 
 # divide 
 # 数据类型为tuple时，给出全部阈值确定连续分组；
@@ -120,6 +121,8 @@ class Portfolio():
         self.comm = comm
         self.norm = norm
         self.justdivide=justdivide
+        # 下期收益率
+        self.returns = price.groupby('date').shift(-1)/price-1
 #        # 先按照截面排序归一化
         if norm:
             self.factor = Rank(pd.DataFrame(factor.rename('factor')))
@@ -186,14 +189,14 @@ class Portfolio():
 # a_b factor range from a to b 区间内市值等权重
     def matrix_hold(self):
     # 每个bar按标的等权配置需要的持仓
-        look_factor = self.factor.reset_index()
         if self.norm:
             if self.a_b[-1][0]<=1:
-                look_factor = look_factor.groupby('date').rank(pct=True)
+                look_factor = self.factor.groupby('date').rank(pct=True)
             else:
-                look_factor = look_factor.groupby('date').rank()
+                look_factor = self.factor.groupby('date').rank()
         else:
-            pass
+            look_factor = self.factor
+        look_factor = look_factor.reset_index()
         # 选取因子值 满足a_b list中全部条件的 放置于list_hold (前开后闭，与Rank函数返回的(0，1]对应)
         bar_hold = [look_factor[(i[0]<look_factor['factor']) &\
                                  (look_factor['factor']<=i[1])] for i in self.a_b]
