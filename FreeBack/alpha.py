@@ -4,7 +4,7 @@ from scipy import stats
 import statsmodels.api as sm
 from FreeBack.post import matplot
 from FreeBack import my_pd
-
+import os
 # 该模块包含：
 # 因子计算常用函数
 # 单因子与多因子检验模块（组合法、回归法）
@@ -116,12 +116,14 @@ class Portfolio():
 ## 当日收益率为当日收盘价相对昨日收盘价收益率*前一日持仓权重
 ## comm 不影响结果，仅仅在result中给出多头费后年化收益率 
     def __init__(self, factor, price, norm=True, divide=(0, 0.2, 0.4, 0.6, 0.8, 1),\
-                 justdivide=False, periods=(1, 5, 20), \
+                 justdivide=False, periods=(1, ), \
                   holdweight=None, comm=0):
         self.comm = comm
         self.norm = norm
         self.justdivide=justdivide
-        # 下期收益率
+        # 一个确定持有张数（不去除停牌），一个确定收益率(去除停牌)
+        self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
+        # 每日收益率(当日收盘相比上日收盘)
         returns = self.price/self.price.shift() - 1
         self.returns = returns.fillna(0)
 #        # 先按照截面排序归一化
@@ -130,8 +132,6 @@ class Portfolio():
         else:
             self.factor = pd.DataFrame(factor.rename('factor'))
         self.variable = factor
-        # 一个确定持有张数与收益率
-        self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         # 组合权重 
         if type(holdweight) != type(None):
             # 没有权重则按0计
@@ -152,25 +152,15 @@ class Portfolio():
         self.periods = periods
         # self.a_b表示对因子分隔的阈值，如果是list则直接为a_b
         if type(self.divide) == type(list()):
-            ## 代理变量绝对值
-            #if self.norm == True:
-            #    self.threshold = [self.variable.groupby('date').quantile(self.divide[0][0])] +\
-            #      [self.variable.groupby('date').quantile(i[1]) for i in self.divide]
-            #else:
-            #    self.threshold = [ i for i in self.divide]
             self.a_b = self.divide
         # 如果是tuple则转化成list
         else:
-            #if self.norm==True:
-            #    self.threshold = [self.variable.groupby('date').quantile(i) for i in self.divide]
-            #else:
-            #    self.threshold = [i for i in self.divide]
             self.a_b = [(self.divide[i],self.divide[i+1]) for i in range(len(self.divide)-1)]
         # 如果justdivide为False,则增加一个可以选中全部标的的组合
         if not self.justdivide:
             if self.norm == True:
                 # 按百分比划分
-                if self.a_b[-1][0]<=1:
+                if self.a_b[-1][1]<=1:
                     self.a_b = self.a_b + [(0,1)]
                 else:
                     self.a_b = self.a_b + [(0, 99999)]
@@ -191,9 +181,10 @@ class Portfolio():
     def matrix_hold(self):
     # 每个bar按标的等权配置需要的持仓
         if self.norm:
-            if self.a_b[-1][0]<=1:
+            if self.a_b[-1][1]<=1:
                 look_factor = self.factor.groupby('date').rank(pct=True)
             else:
+                print('整数排序')
                 look_factor = self.factor.groupby('date').rank()
         else:
             look_factor = self.factor
@@ -208,7 +199,9 @@ class Portfolio():
                                  index=self.factor.index.get_level_values(0).unique())\
                                      for i in bar_hold]
         # 等权情况下持有标的的持仓数量为 1/price（持仓金额相等）
-        bar_hold = [(i.isnull().replace([True,False],[0,1])*\
+        #bar_hold = [(i.isnull().replace([True,False],[0,1])*\
+        #             (1/self.price)).fillna(0) for i in bar_hold]
+        bar_hold = [((~i.isnull()).astype(int)*\
                      (1/self.price)).fillna(0) for i in bar_hold]
         # 当holdweight不为None时考虑此权重
         if type(self.holdweight) != type(None):
@@ -218,7 +211,8 @@ class Portfolio():
         for period in self.periods:
             # 以period为周期 调整持仓的持仓表
             # 选取的index  period = 3  0,0,0,3,3,3,6...
-            list_take_hold = [[hold.index[int(i/period)*period] for i in range(len(hold.index))]
+            list_take_hold = [[hold.index[int(i/period)*period]\
+                                for i in range(len(hold.index))]
                     for hold in bar_hold]
             list_hold = [bar_hold[i].loc[list_take_hold[i]]
                     for i in range(len(bar_hold))]
@@ -321,7 +315,7 @@ class Portfolio():
 
 # plot
 # 因子组合收益（单边做多，考虑交易成本（默认单边万7））
-    def HoldReturn(self, i_period, dateleft=None, dateright=None, cost=0):
+    def HoldReturn(self, i_period=0, dateleft=None, dateright=None, cost=0):
         if dateleft==None:
             dateleft = self.factor.index[0][0]
         if dateright==None:
@@ -378,7 +372,7 @@ class Portfolio():
         plt.savefig("HoldReturn.png")
         plt.show()
 # 各组对数收益率-等权对数收益率
-    def LogCompare(self, i_period, dateleft=None, dateright=None, ifbench=True):
+    def LogCompare(self, i_period=0, dateleft=None, dateright=None, ifbench=True):
         if dateleft==None:
             dateleft = self.factor.index[0][0]
         if dateright==None:
@@ -417,12 +411,12 @@ class Portfolio():
         plt.savefig("LogCompare.png")
         plt.show()
 # 柱状图
-    def Bar(self):
+    def Bar(self, i_period=0):
         # 按年度划分收益率
-        df_returns = pd.concat(self.mat_lr[0], axis=1)\
+        df_returns = pd.concat(self.mat_lr[i_period], axis=1)\
             .rename(columns=dict(zip(range(len(self.a_b)), self.a_b)))
         df_returns['year'] = df_returns.index.year
-        df_returns = np.exp(df_returns.groupby('year').sum())-1
+        df_returns = 100*(np.exp(df_returns.groupby('year').sum())-1)
         # 作图
         plt, fig, ax = matplot()
         x = np.arange(len(df_returns))
@@ -434,6 +428,14 @@ class Portfolio():
                     width=width, label='%s'%(str(self.a_b[n])))
         ax.legend(bbox_to_anchor=(0.5,-0.3), loc=10, ncol=3)
         plt.xticks(x, list(df_returns.index), fontsize=20)
+        ax.set_ylabel("(%)")
+        if 'output' in os.listdir():
+            pass
+        else:
+            os.mkdir('output')
+        plt.savefig('./output/alpha-Portfolio-Bar.png',\
+                     bbox_inches='tight')
+        plt.show()
 # 各组分组因子值阈值和数量
     def FactorThreshold(self):
         plt, fig, ax = matplot()

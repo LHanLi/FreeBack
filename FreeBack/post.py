@@ -321,14 +321,14 @@ class SeriesPost():
             ax2.set_ylabel('回撤 (%)')
             ax.set_xlim(self.net.index[0], self.net.index[-1])
             plt.gcf().autofmt_xdate()
-        if 'output-post' in os.listdir():
+        if 'output' in os.listdir():
             pass
         else:
-            os.mkdir('output-post')
+            os.mkdir('output')
         if type(filename) == type(None):
-            plt.savefig('./output-post/pnl.png')
+            plt.savefig('./output/pnl.png')
         else:
-            plt.savefig('./output-post/'+filename)
+            plt.savefig('./output/'+filename)
         plt.show()
 
 
