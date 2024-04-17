@@ -11,7 +11,7 @@ import numpy as np
 
 
 # matplot绘图
-def matplot(r=1, c=1, sharex=False, sharey=False, w=8, d=5):
+def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7):
     # don't use sns style
     sns.reset_orig()
     #plot
