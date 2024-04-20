@@ -1,2 +1,2 @@
 # __init__.py
-from FreeBack import alpha, barbybar,display,event,post,my_pd 
+from FreeBack import strat, alpha, barbybar,display,event,post,my_pd 
