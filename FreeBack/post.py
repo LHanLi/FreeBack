@@ -227,6 +227,9 @@ class ReturnsPost():
         plot_index = yearly_returns.index
         plot_height = yearly_returns['lr'].values
         plot_height1 = yearly_returns['bench'].values
+        max_height = max(np.hstack([plot_height, plot_height1]))
+        min_height = min(np.hstack([plot_height, plot_height1]))
+        height = max_height-min_height
         # 如果benchmark是0的话就不画对比了
         if not (self.benchmark==0).any().values[0]:
             ax.bar([i-0.225  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
@@ -249,9 +252,6 @@ class ReturnsPost():
                     plt.text(x, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
                 else:
                     plt.text(x, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
-        max_height = max(np.hstack([plot_height, plot_height1]))
-        min_height = min(np.hstack([plot_height, plot_height1]))
-        height = max_height-min_height
         plt.ylim(min_height-0.1*height, max_height+0.1*height)
 
         plt.legend()
