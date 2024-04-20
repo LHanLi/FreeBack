@@ -7,12 +7,19 @@ import statsmodels.api as sm
 from plottable import ColumnDefinition, ColDef, Table
 from matplotlib.colors import LinearSegmentedColormap
 from FreeBack.display import *
+import FreeBack as FB
 import os
 # 该模块处理策略的后处理(业绩评价、归因）工作，主要包含：
 # 1. ReturnsPost 收益率序列后处理
 # 2. HoldPost 持仓矩阵后处理
 # 3. WorldPost barbybar模块World对象后处理
 
+# 结果文件保存于output中
+def check_output():
+    if 'output' in os.listdir():
+        pass
+    else:
+        os.mkdir('output')
 
 ############################################################################################
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
@@ -93,7 +100,7 @@ class ReturnsPost():
 # 净值曲线
 # 时间起止（默认全部），是否显示细节,是否自定义输出图片名称，是否显示对数，是否显示超额
     def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False):
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
             # 时间段内净值与基准
@@ -169,14 +176,102 @@ class ReturnsPost():
             ax2.set_ylabel('回撤 (%)')
             ax.set_xlim(self.net.index[0], self.net.index[-1])
             plt.gcf().autofmt_xdate()
-        if 'output' in os.listdir():
-            pass
-        else:
-            os.mkdir('output')
+        check_output()
         if type(filename) == type(None):
             plt.savefig('./output/pnl.png')
         else:
             plt.savefig('./output/'+filename)
+        plt.show()
+# 滚动收益与夏普
+    def rolling_return(self, key='return'):
+        plt, fig, ax = FB.display.matplot()
+        if key=='return':
+            ax.plot((self.net/self.net.shift(120)-1)*100, c='C0', label='滚动半年收益')
+            ax2 = ax.twinx()
+            ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='滚动年度收益')
+            ax.legend(loc='upper left')
+            ax2.legend(loc='upper right')
+            ax.set_ylabel('(%)')
+            ax2.set_ylabel('(%)')
+        elif key=='sharpe':
+            halfyearly_sharpe = (np.exp(self.lr.rolling(120).mean()*250)-1)/\
+            ((np.exp(self.lr.rolling(120).std())-1)*np.sqrt(250))
+            yearly_sharpe = (np.exp(self.lr.rolling(250).mean()*250)-1)/\
+            ((np.exp(self.lr.rolling(250).std())-1)*np.sqrt(250))
+            ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
+            ax2 = ax.twinx()
+            ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
+            ax.legend(loc='upper left')
+            ax2.legend(loc='upper right')
+            ax.set_ylim(-3, 10)
+        ax.set_xlim(self.returns.index[0], self.returns.index[-1]) 
+        plt.gcf().autofmt_xdate()
+        check_output()
+        plt.savefig('./output/rolling.png')
+        plt.show()
+# 年度与月度收益
+    def pnl_yearly(self):
+        lr = self.lr
+        lr.name = 'lr'
+        bench = np.log(self.benchmark[self.benchmark.columns[0]].fillna(0)+1)
+        bench.name = 'bench'
+        year = pd.Series(dict(zip(self.returns.index, self.returns.index.map(lambda x: x.year))))
+        year.name = 'year'
+        yearly_returns = pd.concat([year, lr, bench], axis=1)
+        yearly_returns = (np.exp(yearly_returns.groupby('year').sum())*100-100)
+
+        plt, fig, ax = FB.display.matplot()
+
+        len_years = len(yearly_returns)
+        plot_x = range(len_years)
+        plot_index = yearly_returns.index
+        plot_height = yearly_returns['lr'].values
+        plot_height1 = yearly_returns['bench'].values
+        # 如果benchmark是0的话就不画对比了
+        if not (self.benchmark==0).any().values[0]:
+            ax.bar([i-0.225  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
+            ax.bar([i+0.225  for i in plot_x], plot_height1, width=0.45, color='C4',\
+                    label=self.benchmark.columns[0])
+        else:
+            ax.bar([i  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
+        max_height = max(np.hstack([plot_height, plot_height1]))
+        min_height = min(np.hstack([plot_height, plot_height1]))
+        height = max_height-min_height
+        plt.ylim(min_height-0.1*height, max_height+0.1*height)
+
+        for x, contri in zip(plot_x, plot_height):
+            if contri>0:
+                plt.text(x-0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+            else:
+                plt.text(x-0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
+        for x, contri in zip(plot_x, plot_height1):
+            if contri>0:
+                plt.text(x+0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+            else:
+                plt.text(x+0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
+        plt.legend()
+        plt.title('年度收益')
+        plt.xticks(plot_x, labels=plot_index)
+        check_output()
+        plt.ylabel('(%)')
+        plt.savefig('./output/pnl_yearly.png')
+        plt.show()
+    def pnl_monthly(self, excess=False):
+        if excess:
+            df = self.excess_lr
+        else:
+            df = self.lr
+        name = (lambda x: 0 if x==None else x)(df.name) 
+        df = df.reset_index()
+        # 筛出同月数据
+        df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
+        df = df[['month', name]]
+        df = df.set_index('month')[name]
+        # 月度收益 %
+        period_return = (np.exp(df.groupby('month').sum()) - 1)*100
+        plt, fig, ax = FB.display.month_thermal(period_return)
+        check_output()
+        plt.savefig('./output/pnl_monthly.png')
         plt.show()
 
 
@@ -469,90 +564,6 @@ class WorldPost():
             plt.savefig('pnl.png')
         else:
             plt.savefig(filename)
-        plt.show()
-# 滚动收益
-    def rolling_return(self):
-        plt, fig, ax = matplot()
-        ax.plot((self.net/self.net.shift(120)-1)*100, c='C0', label='滚动半年收益')
-        #ax.plot((post0.net/post0.net.shift(60)-1)*4, c='C1', label='quarter return')
-        #ax.plot((post0.net/post0.net.shift(120)-1)*2, c='C3', label='half year return')
-        ax2 = ax.twinx()
-        ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='滚动年度收益')
-        ax.legend(loc='upper left')
-        ax2.legend(loc='upper right')
-        ax.set_ylabel(' (%)')
-        ax2.set_ylabel('(%)')
-        ax.set_xlim(self.returns.index[0], self.returns.index[-1])
-        plt.gcf().autofmt_xdate()
-        plt.savefig('rolling_return.png')
-        plt.show()
-# 滚动sharpe
-    def rolling_sharpe(self):
-        plt, fig, ax = matplot()
-        halfyearly_sharpe = (np.exp(self.lr.rolling(120).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(120).std())-1)*np.sqrt(250))
-        yearly_sharpe = (np.exp(self.lr.rolling(250).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(250).std())-1)*np.sqrt(250))
-        ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
-        ax2 = ax.twinx()
-        ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
-        ax.legend(loc='upper left')
-        ax2.legend(loc='upper right')
-        ax.set_ylim(-3, 10)
-        ax.set_xlim(self.returns.index[0], self.returns.index[-1])
-        plt.gcf().autofmt_xdate()
-        plt.savefig('rolling_sharpe.png')
-# 月度收益
-    def pnl_monthly(self):
-        plt,fig,ax = plot_thermal(self.lr)
-        plt.savefig('pnl_monthly.png')
-        plt.show()
-    def pnl_yearly(self):
-        lr = self.lr
-        lr.name = 'lr'
-        bench = np.log(self.benchmark[self.benchmark.columns[0]].fillna(0)+1)
-        bench.name = 'bench'
-        year = pd.Series(dict(zip(self.returns.index, self.returns.index.map(lambda x: x.year))))
-        year.name = 'year'
-        yearly_returns = pd.concat([year, lr, bench], axis=1)
-        yearly_returns = (np.exp(yearly_returns.groupby('year').sum())*100-100)
-
-        plt, fig, ax = matplot()
-
-        len_years = len(yearly_returns)
-        plot_x = range(len_years)
-        plot_index = yearly_returns.index
-        plot_height = yearly_returns['lr'].values
-        plot_height1 = yearly_returns['bench'].values
-
-        ax.bar([i-0.225  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
-        ax.bar([i+0.225  for i in plot_x], plot_height1, width=0.45, color='C4', label=self.benchmark.columns[0])
-
-        max_height = max(np.hstack([plot_height, plot_height1]))
-        min_height = min(np.hstack([plot_height, plot_height1]))
-        height = max_height-min_height
-        plt.ylim(min_height-0.1*height, max_height+0.1*height)
-
-        for x, contri in zip(plot_x, plot_height):
-            if contri>0:
-                plt.text(x-0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
-            else:
-                plt.text(x-0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
-        for x, contri in zip(plot_x, plot_height1):
-            if contri>0:
-                plt.text(x+0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
-            else:
-                plt.text(x+0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
-        plt.legend()
-        plt.title('年度收益')
-        plt.xticks(plot_x, labels=plot_index)
-        plt.ylabel('(%)')
-        plt.savefig('pnl_yearly.png')
-        plt.show()
-# 月度超额收益
-    def pnl_excess_monthly(self):
-        plt,fig,ax = plot_thermal(self.excess_lr)
-        plt.savefig('pnl_excess_monthly.png')
         plt.show()
 # 交易分析
     def trade(self):
