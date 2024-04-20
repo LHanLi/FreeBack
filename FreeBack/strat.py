@@ -28,16 +28,17 @@ def ChooseSecurities(market, strat0):
     if type(strat0['in/exclude'])==list:
         if strat0['in/exclude']==[]:
             # 空仓
-            market = add_deposit(market)
-            df_hold0 = market.loc[:, ['deposit'], :][['next_returns']]
+            deposit = pd.DataFrame(index=market.index.get_level_values(0).unique())
+            deposit['code'] = 'deposit'
+            deposit['next_returns'] = 0
+            return deposit.reset_index().set_index(['date', 'code'])
         else:
-            df_hold0 = market.loc[:, strat0['in/exclude'], :][['next_returns']]
+            return market.loc[:, strat0['in/exclude'], :][['next_returns']]
     else:
         keeppool_rank = (lambda x: market[market[x[0]]] if x[0] \
                             else market[~market[x[1]]])(strat0['in/exclude'])[strat0['score']].\
                                 groupby('date').rank(ascending=False, pct=(strat0['select']<1))
-        df_hold0 = market.loc[keeppool_rank[keeppool_rank<=strat0['select']].index][['next_returns']]
-    return df_hold0     
+        return market.loc[keeppool_rank[keeppool_rank<=strat0['select']].index][['next_returns']]
 
 
 #============================  择时选股策略  ===================================
