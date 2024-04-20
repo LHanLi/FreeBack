@@ -17,16 +17,16 @@ import os
 ############################################################################################
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
 ############################################################################################
-class SeriesPost():
+class ReturnsPost():
     # benchmark dataframe 收益率序列
-    def __init__(self, returns, benchmark=None, stratname='策略'):
+    def __init__(self, returns, benchmark=0, stratname='策略'):
         self.stratname = stratname
         self.returns = returns
         self.net = (1+returns).cumprod()
         # 无风险利率
         self.rf = 0.03
         # 基准
-        if type(benchmark) == type(None):
+        if benchmark==0:
             benchmark = pd.DataFrame(index = returns.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
@@ -34,14 +34,11 @@ class SeriesPost():
         # 基准波动率
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
-        # 计算复杂指标
-
         # 净值曲线
         self.lr = np.log(self.returns + 1)
         # 超额收益 默认第一个benchmark
         self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
         self.returns.index.name = 'date'
-        
         # 评价指标
         # 年化收益率（+1）
         self.years = (returns.index[-1]-returns.index[0]).days/365  
@@ -96,7 +93,7 @@ class SeriesPost():
 # 净值曲线
 # 时间起止（默认全部），是否显示细节,是否自定义输出图片名称，是否显示对数，是否显示超额
     def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False):
-        plt, fig, ax = matplot(w=10)
+        plt, fig, ax = matplot()
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
             # 时间段内净值与基准
@@ -123,14 +120,19 @@ class SeriesPost():
             else:
                 ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
-            if type(self.benchmark) != type(None):
-                benchmark = self.benchmark.loc[timerange[0]:timerange[1]].copy()
-                benchmark.iloc[0] = 0
-        # colors of benchmark
+            # 如果基准是0就不绘制了
+            if not (self.benchmark==0).any().values[0]:
+                # benchmark 匹配回测时间段, 基准从0开始
+                benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
+                benchmark.loc[self.net.index[0]] = 0
+                # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):
-                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), 
+                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), \
                             c=colors_list[i], label=benchmark.columns[i])
+                if excess:
+                    ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
+                plt.legend(loc='upper left')
             if log:
                 # 对数坐标显示
                 ax.set_yscale("log")
@@ -143,9 +145,9 @@ class SeriesPost():
             round(100*max(self.drawdown),2)), transform=ax.transAxes)
         # 净值与基准
             ax.plot(self.net, c='C0', label=self.stratname)
+            # 如果基准是0就不绘制了
             if not (self.benchmark==0).any().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
-                # 如果基准是0就不绘制了
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
                 # colors of benchmark
@@ -179,14 +181,14 @@ class SeriesPost():
 
 
 
-
 ############################################################################################
 ################################### 处理持仓表 ##############################################
 ############################################################################################
-class HoldPost():
+class HoldPost(ReturnsPost):
     def __init__(self, df_hold, market=None, \
-                 benchmark=None, stratname='策略'):
-        self.returns = df_hold.groupby('date')['next_returns'].mean()
+                 benchmark=0, stratname='策略'):
+        returns = df_hold.groupby('date')['next_returns'].mean()
+        super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname) 
 
 
 
