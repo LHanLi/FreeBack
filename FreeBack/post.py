@@ -232,23 +232,28 @@ class ReturnsPost():
             ax.bar([i-0.225  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
             ax.bar([i+0.225  for i in plot_x], plot_height1, width=0.45, color='C4',\
                     label=self.benchmark.columns[0])
+            for x, contri in zip(plot_x, plot_height):
+                if contri>0:
+                    plt.text(x-0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+                else:
+                    plt.text(x-0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
+            for x, contri in zip(plot_x, plot_height1):
+                if contri>0:
+                    plt.text(x+0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+                else:
+                    plt.text(x+0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
         else:
             ax.bar([i  for i in plot_x], plot_height, width=0.45, color='C0', label='策略')
+            for x, contri in zip(plot_x, plot_height):
+                if contri>0:
+                    plt.text(x, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
+                else:
+                    plt.text(x, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
         max_height = max(np.hstack([plot_height, plot_height1]))
         min_height = min(np.hstack([plot_height, plot_height1]))
         height = max_height-min_height
         plt.ylim(min_height-0.1*height, max_height+0.1*height)
 
-        for x, contri in zip(plot_x, plot_height):
-            if contri>0:
-                plt.text(x-0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
-            else:
-                plt.text(x-0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
-        for x, contri in zip(plot_x, plot_height1):
-            if contri>0:
-                plt.text(x+0.225, contri+height/30, round(contri,1), ha='center', color='C3', fontsize=8)
-            else:
-                plt.text(x+0.225, contri-height/20, round(contri,1), ha='center', color='C2', fontsize=8)
         plt.legend()
         plt.title('年度收益')
         plt.xticks(plot_x, labels=plot_index)
