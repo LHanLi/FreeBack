@@ -43,7 +43,7 @@ def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7):
     return plt, fig, ax
 
 # 月度数据热力图  
-# period_value格式为 index month ‘2023-7-1’  value  0: ***
+# period_value 为pd.Series index month ‘2023-7-1’  value  0: ***
 # color_threshold 为红绿色分界点
 def month_thermal(period_value, color_threshold=0):   
     # 数值>0红色，<0为绿色。转化为颜色[R,G,B]
@@ -76,7 +76,8 @@ def month_thermal(period_value, color_threshold=0):
         return i, j, plot, calendar
 
     # 纵坐标为年份，横坐标为月份, 填充值
-    dates, data = list(period_value.index), period_value.iloc[:,0].values
+    dates, data = list(period_value.index), period_value.values
+    #period_value.iloc[:,0].values
     i, j, plot, calendar = calendar_array(dates, data)
     # 绘制热力图
     plt, fig, ax = matplot()
@@ -86,7 +87,7 @@ def month_thermal(period_value, color_threshold=0):
     i.sort()
     ax.set(yticks=i)
     # 年份
-    years = list(set([i.year for i in period_value.index]))
+    years = sorted(list(set([i.year for i in period_value.index])))
     ax.set_yticklabels(years)
     # 设置横坐标 月份
     j = np.array(list(set(j)))
@@ -102,7 +103,7 @@ def month_thermal(period_value, color_threshold=0):
             if not np.isnan(calendar[i_][j_]):
                 ax.text(j_, i_, calendar[i_][j_].round(2), ha='center', va='center')
     return plt, fig, ax
-
+'''
 # 月度收益热力图    输入对数收益率的series 
 def plot_thermal(df_returns):
     # 先转化为对数收益率
@@ -110,7 +111,7 @@ def plot_thermal(df_returns):
     df_lr = df_returns.reset_index()
     # 筛出同月数据
     df_lr['month'] = df_lr['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
-    df_lr = df_lr[['month', df_returns.name]]
+    df_lr = df_lr[['month', (lambda x: 0 if x==None else x)(df_returns.name)]]
     df_lr = df_lr.set_index('month')
     # 月度收益 %
     period_return = (np.exp(df_lr.groupby('month').sum()) - 1)*100
@@ -171,7 +172,7 @@ def plot_thermal(df_returns):
                 ax.text(j_, i_, calendar[i_][j_].round(2), ha='center', va='center')
 
     return plt, fig, ax
-
+'''
 
 
 
