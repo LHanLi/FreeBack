@@ -184,7 +184,9 @@ class SeriesPost():
 ################################### 处理持仓表 ##############################################
 ############################################################################################
 class HoldPost():
-    pass
+    def __init__(self, df_hold, market=None, \
+                 benchmark=None, stratname='策略'):
+        self.returns = df_hold.groupby('date')['next_returns'].mean()
 
 
 
