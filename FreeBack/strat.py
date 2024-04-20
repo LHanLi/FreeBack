@@ -26,7 +26,7 @@ def ChooseSecurities(market, strat0):
         deposit = deposit.reset_index(['date', 'code'])
         return pd.concat([market, deposit]).sort_values('date')
     if type(strat0['in/exclude'])==list:
-        if strat0['in/exclude']==[]:
+        if (strat0['in/exclude']==[]) | (strat0['in/exclude'][0]==''):
             # 空仓
             deposit = pd.DataFrame(index=market.index.get_level_values(0).unique())
             deposit['code'] = 'deposit'

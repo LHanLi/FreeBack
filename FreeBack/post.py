@@ -26,64 +26,43 @@ def check_output():
 ############################################################################################
 class ReturnsPost():
     # benchmark dataframe 收益率序列
-    def __init__(self, returns, benchmark=0, stratname='策略'):
+    def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03):
         self.stratname = stratname
-        self.returns = returns
-        self.net = (1+returns).cumprod()
+        self.returns = returns.fillna(0)
         # 无风险利率
-        self.rf = 0.03
-        # 基准
+        self.rf = rf
+        # 基准指数
         if benchmark==0:
-            benchmark = pd.DataFrame(index = returns.index)
+            benchmark = pd.DataFrame(index = self.returns.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
-        self.benchmark = benchmark.loc[returns.index].fillna(0)
-        # 基准波动率
+        self.benchmark = benchmark.loc[self.returns.index].fillna(0)
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
-        # 净值曲线
+        self.cal_detail()
+    # 详细评价表
+    def cal_detail(self):
+        # 策略绝对表现
+        self.net = (1+self.returns).cumprod()
         self.lr = np.log(self.returns + 1)
-        # 超额收益 默认第一个benchmark
-        self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
-        self.returns.index.name = 'date'
-        # 评价指标
-        # 年化收益率（+1）
-        self.years = (returns.index[-1]-returns.index[0]).days/365  
-        self.return_total = (returns+1).prod()                             
-        self.return_annual = self.return_total**(1/self.years)-1    
-        excess_total = np.exp(self.excess_lr.sum())                  # 超额收益
-        self.excess_return_annual = excess_total**(1/self.years)-1
-        # 年化波动率 shrpe
-        self.sigma = np.exp(self.lr.std())-1
+        #self.returns.index.name = 'date'
+        self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
+        self.return_total = self.net[-1]/self.net[0]-1                    
+        self.return_annual = (self.return_total+1)**(1/self.years)-1   
+        self.sigma = np.exp(self.lr.std())-1 
         self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
-        # 超额年化波动率 shrpe
-        self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = (self.excess_return_annual - self.rf)/(self.excess_sigma*np.sqrt(250))
-        # 回撤
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
-    def cal_complex(self):
-        # 复杂指标 
-        win = self.lr[self.lr>0]
-        loss = self.lr[self.lr<0]
-        excesswin = self.excess_lr[self.excess_lr>0]
-        excessloss = self.excess_lr[self.excess_lr<0]
-        # 下行波动率
-        self.sigma_down = np.exp((self.lr-\
-                            self.lr.mean()).apply(lambda x: min(x,0)).std())-1
-        # 跟踪误差
-        self.sigma_alpha = np.exp(np.std(self.lr-\
-                             np.log(self.benchmark[self.benchmark.columns[0]]+1)))-1
-        # 超额回撤
-        excess_net = np.exp(self.excess_lr.fillna(0).cumsum())
-        a = np.maximum.accumulate(excess_net)
-        self.excess_drawdown = (a-excess_net)/a
+        # 超额表现
+        self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1) 
+        self.excess_net = np.exp(self.excess_lr.cumsum())
+        self.excess_total = self.excess_net[-1]/self.excess_net[0]                 
+        self.excess_return_annual = self.excess_total**(1/self.years)-1
+        self.excess_sigma = np.exp(self.excess_lr.std())-1
+        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(250))
+        a = np.maximum.accumulate(self.excess_net)
+        self.excess_drawdown = (a-self.excess_net)/a
         # CAPM (无风险收益为0)
-        y = self.returns.fillna(0)
-        x = self.benchmark[self.benchmark.columns[0]].fillna(0)
-        x = sm.add_constant(x)
-        model = sm.OLS(y, x).fit()
-        # T-M 模型(无风险收益为0)
         y = self.returns.fillna(0)
         x = self.benchmark[self.benchmark.columns[0]].fillna(0)
         x = sm.add_constant(x)
@@ -91,13 +70,78 @@ class ReturnsPost():
         # 市场风险暴露
         self.beta = model.params[self.benchmark.columns[0]]
         # 市场波动无法解释的截距项
-        self.alpha = model.params['const'] 
+        self.alpha = model.params['const']
         #model.summary()
-        ## 索提诺比率   单位下行风险的超额收益
-        #self.sortino = (self.return_annual - self.rf)/(self.sigma_down*np.sqrt(250))
-        # 特雷诺指数  单位beta的超额收益
-        self.treynor  = (self.return_annual - self.rf)/self.beta 
-# 净值曲线
+
+        col0 = pd.DataFrame(columns=['col0'])
+        col0.loc[0] = '回测时间（年, 日）'
+        col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
+        col1 = pd.DataFrame(columns=['col1'])
+        col1.loc[0] = '年化收益率（%）'
+        col1.loc[1] = round(self.return_annual*100,1)
+        col1.loc[2] = '年化超额收益率（%）'
+        col1.loc[3] = round(self.excess_return_annual*100,1)
+        col2 = pd.DataFrame(columns=['col2'])
+        col2.loc[0] = '日胜率（%）'
+        col2.loc[1] = round(100*(self.returns>0).mean(),1) 
+        col2.loc[2] = '超额日胜率（%）'
+        col2.loc[3] = round(100*(self.excess_lr>0).mean(),1) 
+        col3 = pd.DataFrame(columns=['col3'])
+        col3.loc[0] = '最大回撤（%）'
+        col3.loc[1] = round(max(self.drawdown)*100, 1)
+        col3.loc[2] = '超额最大回撤（%）'
+        col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
+        col3.loc[4] = '波动率（%）'
+        col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
+        col3.loc[6] = '基准波动率（%）'
+        col3.loc[7] = round(self.sigma_benchmark*np.sqrt(250)*100, 1)
+        col4 = pd.DataFrame(columns=['col4'])
+        col4.loc[0] = 'beta系数'
+        col4.loc[1] = round(self.beta,2) 
+        col4.loc[2] = '詹森指数（%）'
+        col4.loc[3] = round(self.alpha*250*100,1)
+        col5 = pd.DataFrame(columns=['col5'])
+        col5.loc[0] = '夏普比率'
+        col5.loc[1] = round(self.sharpe,2)
+        col5.loc[2] = '超额夏普' 
+        col5.loc[3] = round(self.excess_sharpe,2)
+        col5.loc[4] = '卡玛比率'
+        col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
+        col6 = pd.DataFrame(columns=['col6'])
+        col6.loc[0] = '年换手'
+        col6.loc[1] = '' 
+        col7 = pd.DataFrame(columns=['col7'])
+        col7.loc[0] = 'Hurst指数' 
+        col7.loc[1] = '' 
+        df_details = pd.concat([col0, col1, col2, col3, \
+                col4, col5, col6, col7], axis=1).fillna('')
+        self.df_details = df_details
+    def detail(self):
+        plt, fig, ax = matplot(w=22)
+        column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
+                              ColumnDefinition(name='col1', group="收益能力"), \
+                            ColumnDefinition(name='col2', group='收益能力'), \
+                            ColumnDefinition(name='col3', group='风险水平'), \
+                            ColumnDefinition(name="col4", group='风险调整'), \
+                            ColumnDefinition(name="col5", group='风险调整'), \
+                            ColumnDefinition(name="col6", group='策略执行'),
+                            ColumnDefinition(name="col7", group='业绩持续性分析')] +\
+                            [ColDef("index", title="", width=1.5, textprops={"ha":"right"})]
+        tab = Table(self.df_details, row_dividers=False, col_label_divider=False, 
+                    column_definitions=column_definitions,
+                    odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
+                    textprops={"ha": "center"})
+        #ax.set_xlim(2,5)
+        # 设置列标题文字和背景颜色(隐藏表头名)
+        tab.col_label_row.set_facecolor("white")
+        tab.col_label_row.set_fontcolor("white")
+        # 设置行标题文字和背景颜色
+        tab.columns["index"].set_facecolor("white")
+        tab.columns["index"].set_fontcolor("white")
+        tab.columns["index"].set_linewidth(0)
+        check_output()
+        plt.savefig('./output/details.png')
+        plt.show()
 # 时间起止（默认全部），是否显示细节,是否自定义输出图片名称，是否显示对数，是否显示超额
     def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False):
         plt, fig, ax = FB.display.matplot()
@@ -285,10 +329,32 @@ class ReturnsPost():
 ################################### 处理持仓表 ##############################################
 ############################################################################################
 class HoldPost(ReturnsPost):
-    def __init__(self, df_hold, market=None, \
+    # 持仓表、单边交易成本、market
+    def __init__(self, df_hold, comm=0/1e4, market=None, \
                  benchmark=0, stratname='策略'):
-        returns = df_hold.groupby('date')['next_returns'].mean()
+        self.df_hold = df_hold
+        # 等权持仓
+        df_hold['weight'] = 1
+        df_hold['weight'] = df_hold['weight']/df_hold['weight'].groupby('date').sum()
+        # 初始状态全仓为现金,没有现金列则
+        pos_df = df_hold['weight'].unstack('code').fillna(0)
+        pos_df_shift = pos_df.shift().fillna(0).copy()
+        pos_df_shift.loc[pos_df.index[0], 'deposit'] = 1
+        pos_df_shift.fillna(0)
+        # 去掉现金列的绝对值增减之和即为换手率
+        self.turnover_ser = abs(pos_df-pos_df_shift).drop(columns=['deposit', ]).sum(axis=1)
+        # 收益率
+        returns = (df_hold.groupby('date')['next_returns'].mean()+1)*(1-self.turnover_ser*comm)-1
         super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname) 
+    def turnover(self):
+        plt, fig, ax = FB.display.matplot()
+        ax.plot(self.turnover_ser*250, alpha=0.2)
+        ax.plot(self.turnover_ser.rolling(20).mean()*250, label='20日滚动换手')
+        ax.plot(self.turnover_ser.rolling(250).mean()*250, label='250日滚动换手')
+        ax.legend()
+        check_output()
+        plt.savefig('./output/turnover.png')
+        plt.show()
 
 
 
