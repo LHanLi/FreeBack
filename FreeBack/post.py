@@ -32,7 +32,7 @@ class ReturnsPost():
         # 无风险利率
         self.rf = rf
         # 基准指数
-        if benchmark==0:
+        if type(benchmark)==int:
             benchmark = pd.DataFrame(index = self.returns.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
@@ -93,8 +93,6 @@ class ReturnsPost():
         col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
         col3.loc[4] = '波动率（%）'
         col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
-        col3.loc[6] = '基准波动率（%）'
-        col3.loc[7] = round(self.sigma_benchmark*np.sqrt(250)*100, 1)
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = 'beta系数'
         col4.loc[1] = round(self.beta,2) 
@@ -108,7 +106,7 @@ class ReturnsPost():
         col5.loc[4] = '卡玛比率'
         col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
         col6 = pd.DataFrame(columns=['col6'])
-        col6.loc[0] = '年换手'
+        col6.loc[0] = ''
         col6.loc[1] = '' 
         col7 = pd.DataFrame(columns=['col7'])
         col7.loc[0] = 'Hurst指数' 
@@ -172,7 +170,7 @@ class ReturnsPost():
                 ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
             # 如果基准是0就不绘制了
-            if not (self.benchmark==0).any().values[0]:
+            if not (self.benchmark==0).all().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
@@ -197,7 +195,7 @@ class ReturnsPost():
         # 净值与基准
             ax.plot(self.net, c='C0', label=self.stratname)
             # 如果基准是0就不绘制了
-            if not (self.benchmark==0).any().values[0]:
+            if not (self.benchmark==0).all().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
@@ -345,7 +343,9 @@ class HoldPost(ReturnsPost):
         self.turnover_ser = abs(pos_df-pos_df_shift).drop(columns=['deposit', ]).sum(axis=1)
         # 收益率
         returns = (df_hold.groupby('date')['next_returns'].mean()+1)*(1-self.turnover_ser*comm)-1
-        super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname) 
+        super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname)
+        self.df_details.loc[0, 'col6'] = '年换手' 
+        self.df_details.loc[1, 'col6'] = round(self.turnover_ser.mean()*250,1)
     def turnover(self):
         plt, fig, ax = FB.display.matplot()
         ax.plot(self.turnover_ser*250, alpha=0.2)
@@ -355,7 +355,9 @@ class HoldPost(ReturnsPost):
         check_output()
         plt.savefig('./output/turnover.png')
         plt.show()
-
+    def get_contribution(self):
+        real_returns = self.df_hold['next_returns']/self.df_hold.groupby('date')['next_returns'].count()
+        self.contribution = ((real_returns+1).groupby('code').prod()-1).sort_values()
 
 
 ########################################################################################################
