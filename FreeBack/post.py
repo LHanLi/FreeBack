@@ -328,9 +328,11 @@ class ReturnsPost():
 ############################################################################################
 class HoldPost(ReturnsPost):
     # 持仓表、单边交易成本、market
-    def __init__(self, df_hold, comm=0/1e4, market=None, \
+    def __init__(self, df_hold, market=None, comm=0/1e4, \
                  benchmark=0, stratname='策略'):
         self.df_hold = df_hold
+        self.comm = comm
+        self.market = market
         # 等权持仓
         df_hold['weight'] = 1
         df_hold['weight'] = df_hold['weight']/df_hold['weight'].groupby('date').sum()
@@ -342,7 +344,7 @@ class HoldPost(ReturnsPost):
         # 去掉现金列的绝对值增减之和即为换手率
         self.turnover_ser = abs(pos_df-pos_df_shift).drop(columns=['deposit', ]).sum(axis=1)
         # 收益率
-        returns = (df_hold.groupby('date')['next_returns'].mean()+1)*(1-self.turnover_ser*comm)-1
+        returns = (df_hold.groupby('date')['next_returns'].mean()+1)*(1-self.turnover_ser*self.comm)-1
         super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname)
         self.df_details.loc[0, 'col6'] = '年换手' 
         self.df_details.loc[1, 'col6'] = round(self.turnover_ser.mean()*250,1)
@@ -358,6 +360,18 @@ class HoldPost(ReturnsPost):
     def get_contribution(self):
         real_returns = self.df_hold['next_returns']/self.df_hold.groupby('date')['next_returns'].count()
         self.contribution = ((real_returns+1).groupby('code').prod()-1).sort_values()
+    def get_holdtable(self):
+        # 持仓明细
+        result_hold = {}
+        if self.market!=None:
+            for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
+                temp_str = ''
+                for i,v in r[1].dropna().items():
+                    temp_str += str(v)+'('+str(i)+'),'
+                result_hold[r[0]] = temp_str
+        self.result_hold = pd.Series(result_hold)
+        self.result_hold.to_excel('./output/hold.xlsx')
+
 
 
 ########################################################################################################
