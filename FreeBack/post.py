@@ -363,12 +363,11 @@ class HoldPost(ReturnsPost):
     def get_holdtable(self):
         # 持仓明细
         result_hold = {}
-        if self.market!=None:
-            for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
-                temp_str = ''
-                for i,v in r[1].dropna().items():
-                    temp_str += str(v)+'('+str(i)+'),'
-                result_hold[r[0]] = temp_str
+        for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
+            temp_str = ''
+            for i,v in r[1].dropna().items():
+                temp_str += str(v)+'('+str(i)+'),'
+            result_hold[r[0]] = temp_str
         self.result_hold = pd.Series(result_hold)
         self.result_hold.to_excel('./output/hold.xlsx')
 
