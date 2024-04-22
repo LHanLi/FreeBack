@@ -11,7 +11,7 @@ class MetaStrat():
     # 'inexclude':, 
         # 当格式为('bool', False)时， 'bool'列为筛选条件, True为符合条件的证券
         # 格式为（False, 'bool'), 'bool'列为排除条件, False为符合条件的证券
-        # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，''表示持有现金
+        # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
     # 'score':float,   按score列由大到小选取证券,等权持有
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
