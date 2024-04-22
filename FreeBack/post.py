@@ -326,6 +326,9 @@ class ReturnsPost():
 ############################################################################################
 ################################### 处理持仓表 ##############################################
 ############################################################################################
+
+
+
 class HoldPost(ReturnsPost):
     # 持仓表、单边交易成本、market
     def __init__(self, df_hold, market=None, comm=0/1e4, \
@@ -348,6 +351,43 @@ class HoldPost(ReturnsPost):
         super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname)
         self.df_details.loc[0, 'col6'] = '年换手' 
         self.df_details.loc[1, 'col6'] = round(self.turnover_ser.mean()*250,1)
+    def turnover(self):
+        plt, fig, ax = FB.display.matplot()
+        ax.plot(self.turnover_ser*250, alpha=0.2)
+        ax.plot(self.turnover_ser.rolling(20).mean()*250, label='20日滚动换手')
+        ax.plot(self.turnover_ser.rolling(250).mean()*250, label='250日滚动换手')
+        ax.legend()
+        check_output()
+        plt.savefig('./output/turnover.png')
+        plt.show()
+    def get_contribution(self):
+        real_returns = self.df_hold['next_returns']/self.df_hold.groupby('date')['next_returns'].count()
+        self.contribution = ((real_returns+1).groupby('code').prod()-1).sort_values()
+    def get_holdtable(self):
+        # 持仓明细
+        result_hold = {}
+        for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
+            temp_str = ''
+            for i,v in r[1].dropna().items():
+                temp_str += str(v)+'('+str(i)+'),'
+            result_hold[r[0]] = temp_str
+        self.result_hold = pd.Series(result_hold)
+        self.result_hold.to_excel('./output/hold.xlsx')
+
+
+
+############################################################################################
+################################### 处理Strat对象 ##############################################
+############################################################################################
+
+
+
+class StratPost(ReturnsPost):
+    # 持仓表、单边交易成本、market()
+    def __init__(self, strat0, market=None, \
+                 benchmark=0, stratname='策略'):
+        self.strat = strat0
+        self.market = market
     def turnover(self):
         plt, fig, ax = FB.display.matplot()
         ax.plot(self.turnover_ser*250, alpha=0.2)
