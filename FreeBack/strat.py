@@ -27,7 +27,7 @@ class MetaStrat():
     def get_hold(self):
         # 按列表持股
         if type(self.inexclude)==list:
-            if '' in (self.inexclude): 
+            if 'cash' in (self.inexclude): 
                 cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
                 cash['code']  = 'cash'
                 cash['name'] = '现金'
