@@ -2,9 +2,13 @@ import FreeBack as FB
 import numpy as np
 import pandas as pd
 
+
+
 ####################################################################
 ########################## 常用策略框架 ##############################
 ###################################################################
+
+
 
 # 择股策略、元策略
 class MetaStrat():
@@ -23,24 +27,32 @@ class MetaStrat():
         self.market = market
         self.price = price
         self.interval = interval
+    # 为market添加cash品种
+    def add_cash(self):
+        cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
+        cash['code']  = 'cash'
+        cash['name'] = '现金'
+        cash[self.price] = 1
+        cash = cash.reset_index().set_index(['date', 'code'])
+        self.market = pd.concat([self.market, cash]).sort_values('date')
     # 获得持仓表(持仓张数)
     def get_hold(self):
         # 按列表持股
         if type(self.inexclude)==list:
-            if 'cash' in (self.inexclude): 
-                cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
-                cash['code']  = 'cash'
-                cash['name'] = '现金'
-                cash[self.price] = 1
-                cash = cash.reset_index().set_index(['date', 'code'])
-                self.market = pd.concat([self.market, cash]).sort_values('date') 
+            if 'cash' in (self.inexclude):
+                self.add_cash()
             df_hold = self.market.loc[:, self.inexclude, :]
         # 按排除、排序规则持股
         else:
             keeppool_rank = (lambda x: self.market[self.market[x[0]]] if x[0] \
                                 else self.market[~self.market[x[1]]])(self.inexclude)[self.score].\
                                     groupby('date').rank(ascending=False, pct=(self.hold_num<1))
-            df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index]
+            df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
+            # 检查有无空仓情形，如果有的话就添加现金
+            lost_bars = list(set(self.market.index.get_level_values(0))-set(df_hold.index.get_level_values(0)))
+            if lost_bars!=[]:
+                self.add_cash()
+                df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 等权（每只股票买一块钱）
         self.df_hold = (1/df_hold[self.price].unstack()).fillna(0)
     # 调仓间隔不为1时，需考虑调仓问题
@@ -54,10 +66,9 @@ class MetaStrat():
             ## 提取的index非连续，复原到原来的连续交易日index
             real_hold.index = self.df_hold.index
             self.df_hold = real_hold
-
             #index_date = self.df_hold.index.get_level_values(0).unique()
             #index_select = {index_date[i]:index_date[i-i%self.interval] for i in range(len(index_date))}
-            #result = [] 
+            #result = []
             #for k,v in index_select.items():
             #    df = self.df_hold.loc[v].copy()
             #    df['date'] = k
@@ -67,6 +78,9 @@ class MetaStrat():
     def run(self):
         self.get_hold()
         self.get_interval()
+        # 判断cash是否在持仓，如果在的话避免price没有cash列
+        if 'cash' in self.df_hold.columns:
+            self.add_cash()
         df_price = pd.DataFrame(self.market[self.price]).pivot_table(self.price, 'date' ,'code')
         # 权重矩阵
         df_weight = (self.df_hold*df_price).fillna(0)
@@ -75,6 +89,7 @@ class MetaStrat():
         returns = (df_price/df_price.shift() - 1).fillna(0)
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)    
+
 
 
 # 组合策略、择时策略
@@ -125,31 +140,6 @@ class ComboStrat(MetaStrat):
             strati.get_hold()
             df_holds.append(strati.df_hold)
         self.df_hold = pd.concat(df_holds).sort_values(by='date').fillna(0)
-#    def get_interval(self):
-#        if self.interval!=1:
-#            index_date = self.df_hold.index.get_level_values(0).unique()
-#            index_select = {index_date[i]:index_date[i-i%self.interval] for i in range(len(index_date))}
-#            result = [] 
-#            for k,v in index_select.items():
-#                df = self.df_hold.loc[v].copy()
-#                df['date'] = k
-#                result.append(df.reset_index())
-#            self.df_hold = pd.concat(result).sort_values(by='date').set_index(['date', 'code'])
-#    def run(self):
-#        self.get_hold()
-#        self.get_interval()
-#        df_price = pd.DataFrame(self.market[self.price]).pivot_table(self.price, 'date' ,'code')
-#        # 权重矩阵
-#        df_weight = (self.df_hold*df_price).fillna(0)
-#        self.df_weight = (df_weight.apply(lambda x: (x/x.sum()).fillna(0), axis=1))
-#        # 净值贡献矩阵
-#        returns = (df_price/df_price.shift() - 1).fillna(0)
-#        self.df_contri = (self.df_weight.shift()*returns).fillna(0)
-#        self.returns = self.df_contri.sum(axis=1)
-
-
-
-
 
 
 
