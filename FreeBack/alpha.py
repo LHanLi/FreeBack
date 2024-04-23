@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import statsmodels.api as sm
-from FreeBack.post import matplot
-from FreeBack import my_pd
+import FreeBack as FB
 import os
 # 该模块包含：
 # 因子计算常用函数
@@ -74,7 +73,7 @@ def resample_select(market, freq='month'):
     elif freq=='week':
         return market[market.index.map(lambda x:getattr(x[0], 'weekday')())==0]
 def QQ(factor, date=None):
-    plt, fig, ax = matplot(w=6, d=4)
+    plt, fig, ax = FB.display.matplot(w=6, d=4)
     if date==None:
         norm_dis = pd.Series(np.random.randn(len(factor))).sort_values()
         ax.scatter(norm_dis, factor.sort_values())
@@ -320,7 +319,7 @@ class Portfolio():
             dateleft = self.factor.index[0][0]
         if dateright==None:
             dateright = self.factor.index[-1][0]
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         ax2 = ax.twinx()
         # 画图曲线颜色和透明度区分
         # 不包含等权指数
@@ -382,7 +381,7 @@ class Portfolio():
             dateleft = self.factor.index[0][0]
         if dateright==None:
             dateright = self.factor.index[-1][0]
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         if ifbench:
             benchmark = self.mat_lr[i_period][-1].cumsum()
         else:
@@ -428,7 +427,7 @@ class Portfolio():
         df_returns['year'] = df_returns.index.year
         df_returns = 100*(np.exp(df_returns.groupby('year').sum())-1)
         # 作图
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         x = np.arange(len(df_returns))
         width = 0.08
         # 偏移量
@@ -448,7 +447,7 @@ class Portfolio():
         plt.show()
 # 各组分组因子值阈值和数量
     def FactorThreshold(self):
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         # 颜色与LogCompare中相同，最大值和最小值为橙色C1
         # 等权指数不画
         number = len(self.a_b)-1
@@ -515,7 +514,7 @@ def FactorGroup(market, group_value0, group_value1=None,\
         group = market_factor.groupby([group0, 'date'])
         result_returns = group[returns_key].mean()
 
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         ax1 = ax.twinx()
         for i in result_returns.index.get_level_values(0).unique():
             ax.plot(result_returns.loc[i].cumsum(), label='group %s, %.2lf'%(i, \
@@ -566,7 +565,7 @@ def FactorGroup(market, group_value0, group_value1=None,\
             return [1+(x-min_r)/max_r,1,1+(x-min_r)/max_r]
     # 
     plot = np.ones((len(level0s),len(level1s),3))
-    plt, fig, ax = matplot()
+    plt, fig, ax = FB.display.matplot()
     for level0 in range(len(level0s)):
         for level1 in range(len(level1s)):
             # 先列再行
@@ -743,7 +742,7 @@ class Reg():
         display(result)
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         cumsum_fr = 250*self.fr_dict[period].cumsum()
         ax.plot(cumsum_fr, label='累计因子收益率', c='C0')
         ax.plot(cumsum_fr.rolling(20).min(),\
@@ -760,7 +759,7 @@ class Reg():
         plt.show() 
     # 截面因子与收益率（散点图） n为分级靠档组数
     def cross(self, date=None, period=1, n=100):
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         df_corr = self.cross_dict[period].copy()
         if self.point:
             beta = self.fr_dict[period]
