@@ -12,7 +12,7 @@ import pandas as pd
 
 # 择股策略、元策略
 class MetaStrat():
-    # 'inexclude':, 
+    # 'inexclude':,
         # 当格式为('bool', False)时， 'bool'列为筛选条件, True为符合条件的证券
         # 格式为（False, 'bool'), 'bool'列为排除条件, False为符合条件的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
@@ -53,8 +53,12 @@ class MetaStrat():
             if lost_bars!=[]:
                 self.add_cash()
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
-        # 等权（每只股票买一块钱）
-        self.df_hold = (1/df_hold[self.price].unstack()).fillna(0)
+        # 等权（总账户市值1块钱）
+        df_hold = (1/df_hold[self.price].unstack()).fillna(0)
+        df_hold = df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
+        # 去掉一直持仓为0的品种
+        always_not_hold = (df_hold==0).all()
+        self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self):
         if self.interval!=1:
@@ -65,15 +69,9 @@ class MetaStrat():
             real_hold = self.df_hold.loc[take_hold].copy()
             ## 提取的index非连续，复原到原来的连续交易日index
             real_hold.index = self.df_hold.index
-            self.df_hold = real_hold
-            #index_date = self.df_hold.index.get_level_values(0).unique()
-            #index_select = {index_date[i]:index_date[i-i%self.interval] for i in range(len(index_date))}
-            #result = []
-            #for k,v in index_select.items():
-            #    df = self.df_hold.loc[v].copy()
-            #    df['date'] = k
-            #    result.append(df.reset_index())
-            #self.df_hold = pd.concat(result).sort_values(by='date').set_index(['date', 'code'])
+            # 去掉一直持仓为0的品种
+            always_not_hold = (real_hold==0).all()
+            self.df_hold = real_hold[always_not_hold[~always_not_hold].index].copy()
     # 运行策略
     def run(self):
         self.get_hold()
@@ -81,14 +79,21 @@ class MetaStrat():
         # 判断cash是否在持仓，如果在的话避免price没有cash列
         if 'cash' in self.df_hold.columns:
             self.add_cash()
-        df_price = pd.DataFrame(self.market[self.price]).pivot_table(self.price, 'date' ,'code')
+        # 价格矩阵，去掉全是0的列
+        self.df_price = pd.DataFrame(self.market[self.price]).\
+            pivot_table(self.price, 'date' ,'code')[self.df_hold.columns].copy()
+        # 货值矩阵
+        self.df_amount = (self.df_hold*self.df_price).fillna(0)
         # 权重矩阵
-        df_weight = (self.df_hold*df_price).fillna(0)
-        self.df_weight = (df_weight.apply(lambda x: (x/x.sum()).fillna(0), axis=1))
+        self.df_weight = (self.df_amount.apply(lambda x: (x/x.sum()).fillna(0), axis=1))
         # 净值贡献矩阵
-        returns = (df_price/df_price.shift() - 1).fillna(0)
+        returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)    
+        # 交易金额
+        delta_hold = self.df_hold-self.df_hold.shift().fillna(0)
+        self.delta_amount = (delta_hold*self.df_price).fillna(0)
+        self.turnover = self.delta_amount.drop(columns='cash').sum(axis=1)/self.df_amount.sum(axis=1)
 
 
 
@@ -143,6 +148,8 @@ class ComboStrat(MetaStrat):
 
 
 
+
+'''
 #===========================  选股策略  ===================================
 # market, multiindex(date, code) 必须列为 'bool', 'score', ‘next_return'
 def ChooseSecurities(market, strat0):
@@ -213,7 +220,7 @@ def ChooseStrat(market, conds, strats):
 
 
 ###########
-
+'''
 
 
 
