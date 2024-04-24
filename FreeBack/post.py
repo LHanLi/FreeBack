@@ -6,7 +6,6 @@ import datetime
 import statsmodels.api as sm
 from plottable import ColumnDefinition, ColDef, Table
 from matplotlib.colors import LinearSegmentedColormap
-from FreeBack.display import *
 import FreeBack as FB
 import os
 # 该模块处理策略的后处理(业绩评价、归因）工作，主要包含：
@@ -115,7 +114,7 @@ class ReturnsPost():
                 col4, col5, col6, col7], axis=1).fillna('')
         self.df_details = df_details
     def detail(self):
-        plt, fig, ax = matplot(w=22)
+        plt, fig, ax = FB.display.matplot(w=22)
         column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
                               ColumnDefinition(name='col1', group="收益能力"), \
                             ColumnDefinition(name='col2', group='收益能力'), \
@@ -324,59 +323,6 @@ class ReturnsPost():
 
 
 ############################################################################################
-################################### 处理持仓表 ##############################################
-############################################################################################
-
-
-
-class HoldPost(ReturnsPost):
-    # 持仓表、单边交易成本、market
-    def __init__(self, df_hold, market=None, comm=0/1e4, \
-                 benchmark=0, stratname='策略'):
-        self.df_hold = df_hold
-        self.comm = comm
-        self.market = market
-        # 等权持仓
-        df_hold['weight'] = 1
-        df_hold['weight'] = df_hold['weight']/df_hold['weight'].groupby('date').sum()
-        # 初始状态全仓为现金,没有现金列则
-        pos_df = df_hold['weight'].unstack('code').fillna(0)
-        pos_df_shift = pos_df.shift().fillna(0).copy()
-        pos_df_shift.loc[pos_df.index[0], 'deposit'] = 1
-        pos_df_shift.fillna(0)
-        # 去掉现金列的绝对值增减之和即为换手率
-        self.turnover_ser = abs(pos_df-pos_df_shift).drop(columns=['deposit', ]).sum(axis=1)
-        # 收益率
-        returns = (df_hold.groupby('date')['next_returns'].mean()+1)*(1-self.turnover_ser*self.comm)-1
-        super(HoldPost, self).__init__(returns, benchmark=benchmark, stratname=stratname)
-        self.df_details.loc[0, 'col6'] = '年换手' 
-        self.df_details.loc[1, 'col6'] = round(self.turnover_ser.mean()*250,1)
-    def turnover(self):
-        plt, fig, ax = FB.display.matplot()
-        ax.plot(self.turnover_ser*250, alpha=0.2)
-        ax.plot(self.turnover_ser.rolling(20).mean()*250, label='20日滚动换手')
-        ax.plot(self.turnover_ser.rolling(250).mean()*250, label='250日滚动换手')
-        ax.legend()
-        check_output()
-        plt.savefig('./output/turnover.png')
-        plt.show()
-    def get_contribution(self):
-        real_returns = self.df_hold['next_returns']/self.df_hold.groupby('date')['next_returns'].count()
-        self.contribution = ((real_returns+1).groupby('code').prod()-1).sort_values()
-    def get_holdtable(self):
-        # 持仓明细
-        result_hold = {}
-        for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
-            temp_str = ''
-            for i,v in r[1].dropna().items():
-                temp_str += str(v)+'('+str(i)+'),'
-            result_hold[r[0]] = temp_str
-        self.result_hold = pd.Series(result_hold)
-        self.result_hold.to_excel('./output/hold.xlsx')
-
-
-
-############################################################################################
 ################################### 处理Strat对象 ##############################################
 ############################################################################################
 
@@ -385,21 +331,23 @@ class HoldPost(ReturnsPost):
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略'):
+                 benchmark=0, stratname='策略', rf=0.03):
         self.strat = strat0
         self.market = market
+        super().__init__(strat0.returns, benchmark, stratname, rf)
+        # 去掉现金列的持仓权重矩阵绝对值增减之和即为换手率
+    def detail(self):
+        self.df_details
+        super().detail()
     def turnover(self):
         plt, fig, ax = FB.display.matplot()
-        ax.plot(self.turnover_ser*250, alpha=0.2)
-        ax.plot(self.turnover_ser.rolling(20).mean()*250, label='20日滚动换手')
-        ax.plot(self.turnover_ser.rolling(250).mean()*250, label='250日滚动换手')
+        ax.plot(self.strat.turnover*250, alpha=0.2)
+        ax.plot(self.strat.turnover.rolling(20).mean()*250, label='20日滚动换手')
+        ax.plot(self.strat.turnover.rolling(250).mean()*250, label='250日滚动换手')
         ax.legend()
         check_output()
         plt.savefig('./output/turnover.png')
         plt.show()
-    def get_contribution(self):
-        real_returns = self.df_hold['next_returns']/self.df_hold.groupby('date')['next_returns'].count()
-        self.contribution = ((real_returns+1).groupby('code').prod()-1).sort_values()
     def get_holdtable(self):
         # 持仓明细
         result_hold = {}
@@ -591,7 +539,7 @@ class WorldPost():
         df_details = pd.concat([col0, col1, col2, col3, \
                 col4, col5, col6, col7], axis=1)
 
-        plt, fig, ax = matplot(w=22)
+        plt, fig, ax = FB.display.matplot(w=22)
         column_definitions = [ColumnDefinition(name='col0', group="收益能力"), \
                               ColumnDefinition(name='col1', group="收益能力"), \
                             ColumnDefinition(name='col2', group='收益能力'), \
@@ -617,7 +565,7 @@ class WorldPost():
         plt.show()
 # 净值曲线
     def pnl(self, timerange=None, detail=False, filename=None, log=False, excess=True):
-        plt, fig, ax = matplot(w=10)
+        plt, fig, ax = FB.display.matplot(w=10)
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
             # 时间段内净值与基准
@@ -722,7 +670,7 @@ class WorldPost():
         Close_count = self.Close_amount.reset_index()[['date',0]].set_index('date')
         Close_count = Close_count.groupby('date').count().cumsum()
         # 画图
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         ax.plot(Close_count, label='累积交易次数 胜率：%s 盈亏比：%s'%(round(self.winrate, 2), round(self.odds, 2)))
         ax.set_xlim(self.net.index[0], self.net.index[-1])
         ax.legend()
@@ -743,7 +691,7 @@ class WorldPost():
         plt.show()
 # 仓位分析
     def position(self):
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         held_amount = self.held.groupby('date').sum()
         # 0是资产 1是现金
         df_total = pd.concat([self.held.groupby('date').sum(), self.cash], axis=1).fillna(0)
