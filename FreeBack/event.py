@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-from FreeBack.post import matplot
-from FreeBack.my_pd import parallel_group
-
+import FreeBack as FB
 
 class Event():
     '''
@@ -54,7 +52,7 @@ class Event():
         self.sr = self.sr - self.bench_sr
         self.sr.name = 'sr'
         cols = [i-self.before+1 for i in range(self.length)]
-        self.signal_sr_df = parallel_group(self.sr, fun1, n_core=self.n_core).loc[self.signal]
+        self.signal_sr_df = FB.my_pd.parallel_group(self.sr, fun1, n_core=self.n_core).loc[self.signal]
         self.number = self.signal_sr_df[0].groupby(level='date').count()
         self.bench_net = (self.bench_sr + 1).cumprod()
         self.net = (self.signal_sr_df+1).cumprod(axis=1)
@@ -85,7 +83,7 @@ class Event():
 
     # 每日触发信号数量, bench_type zero时没有bench
     def draw_turnover(self):
-        plt0, fig0, ax0 = matplot()
+        plt0, fig0, ax0 = FB.display.matplot()
         ax1 = ax0.twinx()
         num = self.number
         ax1.plot(num.cumsum(), color='C2', label='累计样本量（右）')
@@ -101,7 +99,7 @@ class Event():
     
     # 每日超额, 事件净值(取均值)
     def draw_net(self):
-        plt0, fig0, ax0 = matplot()
+        plt0, fig0, ax0 = FB.display.matplot()
         sr = self.signal_sr_df.mean(axis=0)
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
@@ -134,7 +132,7 @@ class Event():
         position = (winrate*win - (1-winrate)*loss)/(win*loss)
         position[position<0] = 0
         # 作图
-        plt, fig, ax = matplot()
+        plt, fig, ax = FB.display.matplot()
         ax.plot(100*winrate, c='C2', label='胜率')
         ax.plot(100*odds, c='C0', label='赔率')
         ax1 = ax.twinx()
@@ -147,7 +145,7 @@ class Event():
 
     # 净值累计加减一个方差
     def draw_std_net(self):
-        plt1, fig1, ax1 = matplot()
+        plt1, fig1, ax1 = FB.display.matplot()
         net = self.net.loc[:, 1:]
         net_mean = net.mean()
         net_up = net_mean + self.net.std()
@@ -160,7 +158,7 @@ class Event():
     
     # 净值累计最大值&净值最小值
     def draw_e_ratio(self):
-        plt1, fig1, ax1 = matplot()
+        plt1, fig1, ax1 = FB.display.matplot()
         net = self.net.loc[:, 1:]
         net_max = net.cummax(axis=1).mean()
         net_min = net.cummin(axis=1).mean()
@@ -172,7 +170,7 @@ class Event():
     # 仅一个信号
     # i是siganl中第i个信号
     def draw_one_signal_net(self, date, code):
-        plt0, fig0, ax0 = matplot()
+        plt0, fig0, ax0 = FB.display.matplot()
         sr = self.signal_sr_df.loc[date, code]
         ax0.bar(sr.index, sr.values, width=0.5,  label='单日超额', color='darkgoldenrod')
         ax1 = ax0.twinx()
