@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import datetime
 import statsmodels.api as sm
+from statsmodels.sandbox.stats.runs import runstest_1samp
 from plottable import ColumnDefinition, ColDef, Table
 from matplotlib.colors import LinearSegmentedColormap
 import FreeBack as FB
@@ -39,6 +40,7 @@ class ReturnsPost():
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
         self.cal_detail()
+        self.detail()
     # 详细评价表
     def cal_detail(self):
         # 策略绝对表现
@@ -81,8 +83,8 @@ class ReturnsPost():
         col1.loc[2] = '年化超额收益率（%）'
         col1.loc[3] = round(self.excess_return_annual*100,1)
         col2 = pd.DataFrame(columns=['col2'])
-        col2.loc[0] = '日胜率（%）'
-        col2.loc[1] = round(100*(self.returns>0).mean(),1) 
+        col2.loc[0] = '日胜率（%）'  # 没亏就是赢
+        col2.loc[1] = round(100*(self.returns>=0).mean(),1) 
         col2.loc[2] = '超额日胜率（%）'
         col2.loc[3] = round(100*(self.excess_lr>0).mean(),1) 
         col3 = pd.DataFrame(columns=['col3'])
@@ -95,7 +97,7 @@ class ReturnsPost():
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = 'beta系数'
         col4.loc[1] = round(self.beta,2) 
-        col4.loc[2] = '詹森指数（%）'
+        col4.loc[2] = 'alpha（%）'
         col4.loc[3] = round(self.alpha*250*100,1)
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
@@ -108,8 +110,8 @@ class ReturnsPost():
         col6.loc[0] = ''
         col6.loc[1] = '' 
         col7 = pd.DataFrame(columns=['col7'])
-        col7.loc[0] = 'Hurst指数' 
-        col7.loc[1] = '' 
+        col7.loc[0] = '游程检验（%）'   # 拒绝随机假设的概率 
+        col7.loc[1] = round(100*runstest_1samp(self.returns>0)[1],2)
         df_details = pd.concat([col0, col1, col2, col3, \
                 col4, col5, col6, col7], axis=1).fillna('')
         self.df_details = df_details
@@ -332,32 +334,64 @@ class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
                  benchmark=0, stratname='策略', rf=0.03):
-        self.strat = strat0
+        #self.strat = strat0
         self.market = market
+        self.turnover = strat0.turnover 
+        self.df_hold = strat0.df_hold
+        self.df_amount = strat0.df_amount
         super().__init__(strat0.returns, benchmark, stratname, rf)
-        # 去掉现金列的持仓权重矩阵绝对值增减之和即为换手率
     def detail(self):
-        self.df_details
+        # 空仓时间
+        self.df_details.loc[2, 'col0'] = '空仓时间（日）'
+        self.df_details.loc[3, 'col0'] = (self.df_hold.drop(columns='cash')==0).all(axis=1).sum()
+        # 策略执行
+        self.df_details.loc[0, 'col6'] = '年化换手，持股周期'
+        self.df_details.loc[1, 'col6'] = '%s, %s'%(round(self.turnover.sum()/self.years),\
+                                                   round(500/(self.turnover.sum()/self.years)))
         super().detail()
-    def turnover(self):
+    def plot_turnover(self):
         plt, fig, ax = FB.display.matplot()
-        ax.plot(self.strat.turnover*250, alpha=0.2)
-        ax.plot(self.strat.turnover.rolling(20).mean()*250, label='20日滚动换手')
-        ax.plot(self.strat.turnover.rolling(250).mean()*250, label='250日滚动换手')
+        ax.plot(self.turnover*250, alpha=0.2)
+        ax.plot(self.turnover.rolling(20).mean()*250, label='20日滚动换手')
+        ax.plot(self.turnover.rolling(250).mean()*250, label='250日滚动换手')
         ax.legend()
         check_output()
         plt.savefig('./output/turnover.png')
         plt.show()
     def get_holdtable(self):
-        # 持仓明细
-        result_hold = {}
-        for r in self.df_hold[[]].join(self.market['name'])['name'].unstack().iterrows():
-            temp_str = ''
-            for i,v in r[1].dropna().items():
-                temp_str += str(v)+'('+str(i)+'),'
-            result_hold[r[0]] = temp_str
-        self.result_hold = pd.Series(result_hold)
-        self.result_hold.to_excel('./output/hold.xlsx')
+        # 持仓数量
+        held = pd.DataFrame(self.df_hold.stack()[self.df_hold.stack()!=0]).\
+                    rename(columns={0:'hold'})
+        # 持仓金额
+        held = held.join(pd.DataFrame(self.df_amount.stack()).rename(columns={0:'amount'}))
+        # 是否加入持仓品种名称
+        try:
+            if 'name' in self.market.columns:
+                held = held.join(self.market['name'])
+                held.loc[held.index[held.index.get_level_values(1)=='cash'], 'name'] = '现金'
+        except:
+            pass
+        self.held = held
+        # 持仓表(名称，代码，持仓量，持仓额)
+        result_hold = pd.DataFrame()
+        for date in self.held.index.get_level_values(0).unique():
+            temp = self.held.loc[date].sort_values(by='amount', ascending=False)
+            iamount = 0
+            for idx,val in temp.iterrows():
+                if 'name' in self.market.columns:
+                    keystring = val['name']+'('+str(idx)+')'+ ', 持仓量：'+str(val['hold'])+', 持仓额：'+str(val['amount'])
+                else:
+                    keystring = str(idx) + ', 持仓量：'+str(round(val['hold'],0))+', 持仓额：'+str(round(val['amount'],1))
+                result_hold.loc[date, 'hold%s'%iamount] = keystring
+                iamount += 1
+        result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
+        result_hold.index.name = '日期'
+        self.result_hold = result_hold
+
+        FB.display.write_df(result_hold , "./output/持仓表", col_width={'A':10})
+
+        #self.result_hold = pd.Series(result_hold)
+        #self.result_hold.to_excel('./output/hold.xlsx')
 
 
 

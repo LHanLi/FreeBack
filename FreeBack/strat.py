@@ -93,7 +93,7 @@ class MetaStrat():
         # 交易金额
         delta_hold = self.df_hold-self.df_hold.shift().fillna(0)
         self.delta_amount = (delta_hold*self.df_price).fillna(0)
-        self.turnover = self.delta_amount.drop(columns='cash').sum(axis=1)/self.df_amount.sum(axis=1)
+        self.turnover = abs(self.delta_amount.drop(columns='cash').sum(axis=1))/self.df_amount.sum(axis=1)
 
 
 

@@ -198,7 +198,8 @@ class World():
     # 每个bar开始结束时调用
     # 更新净值函数 包含更新hold amount
     def update_net(self):
-        self.cur_hold_amount = (self.cur_hold_vol * self.cur_market['close']).loc[self.cur_hold_vol.index].sort_values(ascending=False) 
+        self.cur_hold_amount = (self.cur_hold_vol * self.cur_market['close']).\
+            loc[self.cur_hold_vol.index].sort_values(ascending=False) 
         hold_amount = self.cur_hold_amount
         name_hold = hold_amount.index
         name_notnan = hold_amount[~np.isnan(hold_amount)].index

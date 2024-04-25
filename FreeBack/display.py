@@ -5,7 +5,7 @@ from pyecharts import options as opts
 from pyecharts.charts import Kline,Bar,Grid,Line
 from pyecharts.commons.utils import JsCode
 import numpy as np
-import datetime
+import datetime, xlsxwriter
 
 ###########################################################
 ######################## 静态图 ###########################
@@ -173,6 +173,57 @@ def plot_thermal(df_returns):
 
     return plt, fig, ax
 '''
+
+
+# excel表
+def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
+    workbook = xlsxwriter.Workbook('%s.xlsx'%name)
+    worksheet = workbook.add_worksheet()
+    worksheet.freeze_panes(1, 1)   # 冻结首行
+    # 列宽设置
+    for k,v in col_width.items():
+        worksheet.set_column('%s:%s'%(k,k), v)
+    # 行高设置
+    for k,v in row_width.items():
+        worksheet.set_row('%s:%s'%(k,k), v)
+    # 格式
+    general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':1}
+    format_title = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
+                                +[('font_size',14), ('bold',True),\
+                                    ('bg_color','#0066ff'), ('font_color','#ffffff')]))
+    format_text = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
+                                +[('num_format', '#,##0.0')]))
+    format_date = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
+                                +[('num_format', 'yyyy-mm-dd')]))
+    def judge_format(text):
+        return format
+        # 标题与序号 
+    if index:
+        if (type(df.index[0])==datetime.date) | (type(df.index[0])==type(df.index[0])):
+            worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_date)
+        else:
+            worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_text)
+        if title:
+            if df.index.name==None:
+                worksheet.write(0, 0, '', format_title)
+            else:
+                worksheet.write(0, 0, df.index.name, format_title)
+            worksheet.write_row("B1", list(df.columns), format_title)
+    elif title:
+        worksheet.write_row("A1", list(df.columns), format_title)
+    # Iterate over the data and write it out row by row.
+    row=int(title)
+    col=int(index)
+    for i, r in df.iterrows():
+        for j, v in r.items():
+            try:
+                worksheet.write(row, col, v, format_text)
+            except:
+                worksheet.write(row, col, '')
+            col += 1
+        col = int(index)
+        row += 1
+    workbook.close()
 
 
 
