@@ -343,9 +343,12 @@ class StratPost(ReturnsPost):
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
-        self.df_details.loc[3, 'col0'] = (self.df_hold.drop(columns='cash')==0).all(axis=1).sum()
+        if 'cash' in self.df_hold.columns: 
+            self.df_details.loc[3, 'col0'] = (self.df_hold.drop(columns='cash')==0).all(axis=1).sum()
+        else:
+            self.df_details.loc[3, 'col0'] = 0 
         # 策略执行
-        self.df_details.loc[0, 'col6'] = '年化换手，持股周期'
+        self.df_details.loc[0, 'col6'] = '年化换手，持股周期（日）'
         self.df_details.loc[1, 'col6'] = '%s, %s'%(round(self.turnover.sum()/self.years),\
                                                    round(500/(self.turnover.sum()/self.years)))
         super().detail()
