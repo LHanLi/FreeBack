@@ -201,11 +201,11 @@ def cal_ts(ser, func_name='Max', period=20, a=1, parallel=True, n_core=12):
             period, min_periods=1).std()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
         return ((ser-MA)/Std).fillna(0)
-    elif func_name=='HV':
-        returns = np.log(ser/ser.groupby(level='code').shift()).fillna(0)
-        return np.exp(returns.groupby(level='code').apply(lambda x: x.droplevel('code').rolling(\
-            period, min_periods=1).std()*np.sqrt(250)).reset_index().sort_values(\
-                by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0])-1
+    #elif func_name=='HV':
+    #    returns = np.log(ser/ser.groupby(level='code').shift()).fillna(0)
+    #    return np.exp(returns.groupby(level='code').apply(lambda x: x.droplevel('code').rolling(\
+    #        period, min_periods=1).std()*np.sqrt(250)).reset_index().sort_values(\
+    #            by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0])-1
     elif func_name in ['WMA']:
         if parallel:
             def func(ser):
