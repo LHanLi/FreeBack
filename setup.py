@@ -9,7 +9,7 @@ setup(
     # 版本号: 第几次模块增加，第几次函数增加，第几次函数功能修改
     # (每次高级别序号增加后,低级别序号归0)
     # alpha为调试版,beta为测试版,stable为稳定版 
-    version="4.5.6-alpha",
+    version="4.6.1-alpha",
     author="LH.Li,zzq",
     author_email="lh98lee@zju.edu.cn",  
     description='Package for backtest',
@@ -26,6 +26,7 @@ setup(
         'plottable',
         'pyecharts',
         'numpy_ext',
+        'xlsxwriter'
     ],
     classifiers=[
          # 该软件包仅与Python3兼容
