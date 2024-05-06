@@ -42,6 +42,31 @@ def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7):
 
     return plt, fig, ax
 
+# 获取月度统计量
+# method， 
+# total_return 一般收益率总收益
+# total_lr 对数收益率的总收益
+# sum 求和
+# mul 乘积 
+def get_month(ser, method='total_return'):
+    if ser.name == None:
+        name = 0 
+    else:
+        name = ser.name
+    df = ser.reset_index()
+    # 筛出同月数据
+    df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
+    df = df.set_index('month')[name]
+    # 月度统计量
+    if method=='total_return':
+        return (((df+1).groupby('month')).prod()-1)*100
+    elif method=='total_lr':
+        return (np.exp(df.groupby('month').sum()) - 1)*100
+    elif method=='sum':
+        return df.groupby('month').sum()
+    elif method=='mul':
+        return df.groupby('month').prod()
+
 # 月度数据热力图  
 # period_value 为pd.Series index month ‘2023-7-1’  value  0: ***
 # color_threshold 为红绿色分界点
@@ -90,9 +115,7 @@ def month_thermal(period_value, color_threshold=0):
     years = sorted(list(set([i.year for i in period_value.index])))
     ax.set_yticklabels(years)
     # 设置横坐标 月份
-    j = np.array(list(set(j)))
-    j.sort()
-    ax.set(xticks=j)
+    ax.set(xticks=list(range(12)))
     ax.set_xticklabels(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
                                 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     # 关闭网格
