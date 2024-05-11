@@ -13,8 +13,8 @@ import pandas as pd
 # 择股策略、元策略
 class MetaStrat():
     # 'inexclude':,
-        # 当格式为('bool', False)时， 'bool'列为筛选条件, True为符合条件的证券
-        # 格式为（False, 'bool'), 'bool'列为排除条件, False为符合条件的证券
+        # 当格式为('bool', False)时， 'bool'列为筛选条件, 'bool'为True为符合条件的证券
+        # 格式为（False, 'bool'), 'bool'列为排除条件, 'bool'为False为符合条件的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
     # 'score':float,   按score列由大到小选取证券,等权持有
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
@@ -35,7 +35,7 @@ class MetaStrat():
         cash[self.price] = 1
         cash = cash.reset_index().set_index(['date', 'code'])
         self.market = pd.concat([self.market, cash]).sort_values('date')
-    # 获得持仓表(持仓张数)
+    # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
         # 按列表持股
         if type(self.inexclude)==list:
@@ -82,22 +82,26 @@ class MetaStrat():
         # 价格矩阵，去掉全是0的列
         self.df_price = pd.DataFrame(self.market[self.price]).\
             pivot_table(self.price, 'date' ,'code')[self.df_hold.columns].copy()
-        # 货值矩阵
+        # 虚拟货值矩阵
         self.df_amount = (self.df_hold*self.df_price).fillna(0)
         # 权重矩阵
         self.df_weight = (self.df_amount.apply(lambda x: (x/x.sum()).fillna(0), axis=1))
         # 净值贡献矩阵
         returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
-        self.returns = self.df_contri.sum(axis=1)    
+        self.returns = self.df_contri.sum(axis=1)
+        self.net = (self.returns+1).cumprod()
+        # 获得真实持仓市值与持仓张数
+        self.df_amount = self.df_amount.mul(list(self.net.values), axis=0)
+        self.df_hold = self.df_hold.mul(list(self.net.values), axis=0)
         # 交易金额
         delta_hold = self.df_hold-self.df_hold.shift().fillna(0)
         self.delta_amount = (delta_hold*self.df_price).fillna(0)
         # cash的变化不会带来换手，可能没有‘cash'列
         if 'cash' in self.df_hold.columns:
-            self.turnover = abs(self.delta_amount.drop(columns='cash').sum(axis=1))/self.df_amount.sum(axis=1)
+            self.turnover = abs(self.delta_amount).drop(columns='cash').sum(axis=1)/self.net
         else:
-            self.turnover = abs(self.delta_amount.sum(axis=1))/self.df_amount.sum(axis=1)
+            self.turnover = abs(self.delta_amount).sum(axis=1)/self.net
 
 
 
