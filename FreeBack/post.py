@@ -382,12 +382,15 @@ class StratPost(ReturnsPost):
             iamount = 0
             for idx,val in temp.iterrows():
                 if 'name' in self.market.columns:
-                    keystring = val['name']+'('+str(idx)+')'+ ', 持仓量：'+str(val['hold'])+', 持仓额：'+str(val['amount'])
+                    #keystring = val['name']+'('+str(idx)+')'+ ', 持仓量：'+str(val['hold'])+', 持仓额：'+str(val['amount'])
+                    keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+str(round(100*val['amount']/self.net.loc[date], 2))+'%'
                 else:
-                    keystring = str(idx) + ', 持仓量：'+str(round(val['hold'],0))+', 持仓额：'+str(round(val['amount'],1))
+                    #keystring = str(idx) + ', 持仓量：'+str(round(val['hold'],0))+', 持仓额：'+str(round(val['amount'],1))
+                    keystring = str(idx) + ', 仓位：'+str(round(100*val['amount']/self.net.loc[date], 2))+'%'
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
         result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
+        result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,2)).rename(columns={0:'换手率(%)'}))
         result_hold.index.name = '日期'
         self.result_hold = result_hold
 
