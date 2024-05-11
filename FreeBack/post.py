@@ -327,19 +327,16 @@ class ReturnsPost():
 ############################################################################################
 ################################### 处理Strat对象 ##############################################
 ############################################################################################
-
-
-
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', rf=0.03):
+                 benchmark=0, stratname='策略', rf=0.03, comm=0):
         #self.strat = strat0
         self.market = market
         self.turnover = strat0.turnover 
         self.df_hold = strat0.df_hold
         self.df_amount = strat0.df_amount
-        super().__init__(strat0.returns, benchmark, stratname, rf)
+        super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
@@ -396,15 +393,11 @@ class StratPost(ReturnsPost):
 
         FB.display.write_df(result_hold , "./output/持仓表", col_width={'A':10})
 
-        #self.result_hold = pd.Series(result_hold)
-        #self.result_hold.to_excel('./output/hold.xlsx')
-
 
 
 ########################################################################################################
 ####################################  barbybar.world  ##################################################
 ########################################################################################################
-
 # 传入barbybar运行完毕的world对象
 class WorldPost():
     # benchmark为收益率（非对数收益率）
