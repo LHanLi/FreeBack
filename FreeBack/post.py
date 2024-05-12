@@ -401,7 +401,6 @@ class StratPost(ReturnsPost):
         else:
             col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
-        print(col_width)
         FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:25})
 
 
