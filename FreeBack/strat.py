@@ -24,6 +24,10 @@ class MetaStrat():
         self.inexclude = inexclude
         self.score = score
         self.hold_num = hold_num
+        # 记录是否是上市最后一天
+        market['Z'] = market.index.get_level_values(1).duplicated(keep='last')
+        market['Z'] = ~market['Z']
+        market.loc[market.index[-1][0], 'Z'] = False
         self.market = market
         self.price = price
         self.interval = interval
@@ -42,15 +46,17 @@ class MetaStrat():
             if 'cash' in (self.inexclude):
                 self.add_cash()
             df_hold = self.market.loc[:, self.inexclude, :]
-        # 按排除、排序规则持股
+        # 按排除、排序规则持股，避免持有退市前最后一天股票
         else:
-            keeppool_rank = (lambda x: self.market if (not x[0])&(not x[1]) \
-                             else self.market[self.market[x[0]]] if x[0] \
-                                else self.market[~self.market[x[1]]])(self.inexclude)[self.score].\
+            keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x[0])&(not x[1]) \
+                             else self.market[(~self.market['Z'])&self.market[x[0]]] if x[0] \
+                                else self.market[(~self.market['Z'])&(~self.market[x[1]])])\
+                                    (self.inexclude)[self.score].\
                                     groupby('date').rank(ascending=False, pct=(self.hold_num<1))
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
             # 检查有无空仓情形，如果有的话就添加现金
-            lost_bars = list(set(self.market.index.get_level_values(0))-set(df_hold.index.get_level_values(0)))
+            lost_bars = list(set(self.market.index.get_level_values(0))-\
+                                            set(df_hold.index.get_level_values(0)))
             if lost_bars!=[]:
                 self.add_cash()
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
@@ -60,19 +66,6 @@ class MetaStrat():
         # 去掉一直持仓为0的品种
         always_not_hold = (df_hold==0).all()
         self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
-    ## 调仓间隔不为1时，需考虑调仓问题
-    #def get_interval(self):
-    #    if self.interval!=1:
-    #        # 以interval为周期 调整持仓的持仓表
-    #        # 选取的index  interval = 3  0,0,0,3,3,3,6...
-    #        take_hold = [self.df_hold.index[int(i/self.interval)*self.interval]\
-    #                            for i in range(len(self.df_hold.index))]
-    #        real_hold = self.df_hold.loc[take_hold].copy()
-    #        ## 提取的index非连续，复原到原来的连续交易日index
-    #        real_hold.index = self.df_hold.index
-    #        # 去掉一直持仓为0的品种
-    #        always_not_hold = (real_hold==0).all()
-    #        self.df_hold = real_hold[always_not_hold[~always_not_hold].index].copy()
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self, df):
         if self.interval!=1:
