@@ -379,19 +379,30 @@ class StratPost(ReturnsPost):
             iamount = 0
             for idx,val in temp.iterrows():
                 if 'name' in self.market.columns:
-                    #keystring = val['name']+'('+str(idx)+')'+ ', 持仓量：'+str(val['hold'])+', 持仓额：'+str(val['amount'])
-                    keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+str(round(100*val['amount']/self.net.loc[date], 2))+'%'
+                    keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
+                        str(round(100*val['amount']/self.net.loc[date], 2))+'%'
                 else:
-                    #keystring = str(idx) + ', 持仓量：'+str(round(val['hold'],0))+', 持仓额：'+str(round(val['amount'],1))
-                    keystring = str(idx) + ', 仓位：'+str(round(100*val['amount']/self.net.loc[date], 2))+'%'
+                    keystring = str(idx) + ', 仓位：'+str(round(100*val['amount']/\
+                                                             self.net.loc[date], 2))+'%'
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
         result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
         result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,2)).rename(columns={0:'换手率(%)'}))
         result_hold.index.name = '日期'
         self.result_hold = result_hold.sort_index(ascending=False)
-
-        FB.display.write_df(self.result_hold , "./output/持仓表", col_width={'A':10})
+        # excel列名
+        import string
+        A2Z = [i for i in string.ascii_uppercase]
+        excel_columns = A2Z + [i+j for i in A2Z for j in A2Z]
+        # 第一列是日期，宽度15，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度18
+        if 'name' in self.market.columns:
+            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
+        else:
+            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
+        print(col_width)
+        FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:25})
 
 
 

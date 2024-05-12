@@ -208,7 +208,7 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
         worksheet.set_column('%s:%s'%(k,k), v)
     # 行高设置
     for k,v in row_width.items():
-        worksheet.set_row('%s:%s'%(k,k), v)
+        worksheet.set_row(k, v)
     # 格式
     general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':1}
     format_title = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
