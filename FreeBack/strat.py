@@ -44,7 +44,8 @@ class MetaStrat():
             df_hold = self.market.loc[:, self.inexclude, :]
         # 按排除、排序规则持股
         else:
-            keeppool_rank = (lambda x: self.market[self.market[x[0]]] if x[0] \
+            keeppool_rank = (lambda x: self.market if (not x[0])&(not x[1]) \
+                             else self.market[self.market[x[0]]] if x[0] \
                                 else self.market[~self.market[x[1]]])(self.inexclude)[self.score].\
                                     groupby('date').rank(ascending=False, pct=(self.hold_num<1))
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
