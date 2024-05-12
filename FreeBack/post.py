@@ -389,9 +389,9 @@ class StratPost(ReturnsPost):
         result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
         result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,2)).rename(columns={0:'换手率(%)'}))
         result_hold.index.name = '日期'
-        self.result_hold = result_hold
+        self.result_hold = result_hold.sort_index(ascending=False)
 
-        FB.display.write_df(result_hold , "./output/持仓表", col_width={'A':10})
+        FB.display.write_df(self.result_hold , "./output/持仓表", col_width={'A':10})
 
 
 
