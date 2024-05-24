@@ -34,6 +34,7 @@ class ReturnsPost():
         if fast:
             # 策略绝对表现
             self.bars = len(self.returns)  
+            self.net = (1+self.returns).cumprod()
             self.lr = np.log(self.returns + 1)
             self.return_total = self.net[-1]/self.net[0]-1                    
             self.return_annual = (self.return_total+1)**(1/self.years)-1   
