@@ -37,6 +37,7 @@ class ReturnsPost():
             self.net = (1+self.returns).cumprod()
             self.lr = np.log(self.returns + 1)
             self.return_total = self.net[-1]/self.net[0]-1                    
+            self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
             self.return_annual = (self.return_total+1)**(1/self.years)-1   
             self.sigma = np.exp(self.lr.std())-1
             self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
