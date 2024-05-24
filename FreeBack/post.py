@@ -21,32 +21,44 @@ def check_output():
     else:
         os.mkdir('output')
 
-############################################################################################
+##########################################################################################
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
-############################################################################################
+##########################################################################################
 class ReturnsPost():
     # benchmark dataframe 收益率序列
-    def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03):
+    def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03, fast=False):
         self.stratname = stratname
         self.returns = returns.fillna(0)
         # 无风险利率
         self.rf = rf
-        # 基准指数
-        if type(benchmark)==int:
-            benchmark = pd.DataFrame(index = self.returns.index)
-            benchmark['zero'] = 0
-            self.benchmark = benchmark
-        self.benchmark = benchmark.loc[self.returns.index].fillna(0)
-        self.sigma_benchmark = np.exp(np.log(self.benchmark[\
+        if fast:
+            # 策略绝对表现
+            self.bars = len(self.returns)  
+            self.lr = np.log(self.returns + 1)
+            self.return_total = self.net[-1]/self.net[0]-1                    
+            self.return_annual = (self.return_total+1)**(1/self.years)-1   
+            self.sigma = np.exp(self.lr.std())-1
+            self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+            a = np.maximum.accumulate(self.net)
+            self.drawdown = (a-self.net)/a
+        else:
+            # 基准指数
+            if type(benchmark)==int:
+                benchmark = pd.DataFrame(index = self.returns.index)
+                benchmark['zero'] = 0
+                self.benchmark = benchmark
+            self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+            self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
-        self.cal_detail()
-        self.detail()
+            self.cal_detail()
+            self.detail()
     # 详细评价表
     def cal_detail(self):
         # 策略绝对表现
         self.net = (1+self.returns).cumprod()
         self.lr = np.log(self.returns + 1)
         #self.returns.index.name = 'date'
+        self.bars = len(self.returns)  
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
         self.return_total = self.net[-1]/self.net[0]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
@@ -55,9 +67,9 @@ class ReturnsPost():
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
         # 超额表现
-        self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1) 
+        self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
         self.excess_net = np.exp(self.excess_lr.cumsum())
-        self.excess_total = self.excess_net[-1]/self.excess_net[0]                 
+        self.excess_total = self.excess_net[-1]/self.excess_net[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
         self.excess_sigma = np.exp(self.excess_lr.std())-1
         self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(250))
@@ -84,9 +96,9 @@ class ReturnsPost():
         col1.loc[3] = round(self.excess_return_annual*100,1)
         col2 = pd.DataFrame(columns=['col2'])
         col2.loc[0] = '日胜率（%）'  # 没亏就是赢
-        col2.loc[1] = round(100*(self.returns>=0).mean(),1) 
+        col2.loc[1] = round(100*(self.returns>=0).mean(),1)
         col2.loc[2] = '超额日胜率（%）'
-        col2.loc[3] = round(100*(self.excess_lr>0).mean(),1) 
+        col2.loc[3] = round(100*(self.excess_lr>0).mean(),1)
         col3 = pd.DataFrame(columns=['col3'])
         col3.loc[0] = '最大回撤（%）'
         col3.loc[1] = round(max(self.drawdown)*100, 1)
@@ -96,21 +108,21 @@ class ReturnsPost():
         col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = 'beta系数'
-        col4.loc[1] = round(self.beta,2) 
+        col4.loc[1] = round(self.beta,2)
         col4.loc[2] = 'alpha（%）'
         col4.loc[3] = round(self.alpha*250*100,1)
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
         col5.loc[1] = round(self.sharpe,2)
-        col5.loc[2] = '超额夏普' 
+        col5.loc[2] = '超额夏普'
         col5.loc[3] = round(self.excess_sharpe,2)
         col5.loc[4] = '卡玛比率'
         col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
         col6 = pd.DataFrame(columns=['col6'])
         col6.loc[0] = ''
-        col6.loc[1] = '' 
+        col6.loc[1] = ''
         col7 = pd.DataFrame(columns=['col7'])
-        col7.loc[0] = '游程检验（%）'   # 拒绝随机假设的概率 
+        col7.loc[0] = '游程检验（%）'   # 拒绝随机假设的概率
         col7.loc[1] = round(100*runstest_1samp(self.returns>0)[1],2)
         df_details = pd.concat([col0, col1, col2, col3, \
                 col4, col5, col6, col7], axis=1).fillna('')
@@ -324,19 +336,28 @@ class ReturnsPost():
 
 
 
+######################################################################################################
+#################################### 输入一系列收益率序列进行分析 ######################################
+#####################################################################################################
+class BatchPost():
+    def __init___(self, batch):
+        pass
+
+
+
 ############################################################################################
 ################################### 处理Strat对象 ##############################################
 ############################################################################################
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', rf=0.03, comm=0):
+                 benchmark=0, stratname='策略', rf=0.03, fast=False, comm=0):
         #self.strat = strat0
         self.market = market
         self.turnover = strat0.turnover 
         self.df_hold = strat0.df_hold
         self.df_amount = strat0.df_amount
-        super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf)
+        super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf, fast)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
