@@ -45,7 +45,7 @@ class ReturnsPost():
             self.drawdown = (a-self.net)/a
         else:
             # 基准指数
-            if type(benchmark)==int:
+            if benchmark==0:
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
