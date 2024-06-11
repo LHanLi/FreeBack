@@ -43,13 +43,13 @@ class ReturnsPost():
             self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
-        else:
             # 基准指数
             if benchmark==0:
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+        else: 
             self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
             self.cal_detail()
