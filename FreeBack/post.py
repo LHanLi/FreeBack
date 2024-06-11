@@ -44,14 +44,14 @@ class ReturnsPost():
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
             # 基准指数
-            if benchmark==0:
+            if type(benchmark)==type(0):
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
         else: 
             # 基准指数
-            if benchmark==0:
+            if type(benchmark)==type(0):
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
