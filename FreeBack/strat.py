@@ -53,10 +53,10 @@ class MetaStrat():
         # 按排除、排序规则持股，避免持有退市前最后一天股票
         else:
             keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x[0])&(not x[1]) \
-                             else self.market[(~self.market['Z'])&self.market[x[0]]] if x[0] \
+                            else self.market[(~self.market['Z'])&self.market[x[0]]] if x[0] \
                                 else self.market[(~self.market['Z'])&(~self.market[x[1]])])\
                                     (self.inexclude)[self.score].\
-                                    groupby('date').rank(ascending=False, pct=(self.hold_num<1))
+                                        groupby('date').rank(ascending=False, pct=(self.hold_num<1))
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
             # 检查有无空仓情形，如果有的话就添加现金
             lost_bars = list(set(self.market.index.get_level_values(0))-\
@@ -66,10 +66,7 @@ class MetaStrat():
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 等权（总账户市值1块钱）
         df_hold = (1/df_hold[self.price].unstack()).fillna(0)
-        df_hold = df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
-        # 去掉一直持仓为0的品种
-        always_not_hold = (df_hold==0).all()
-        self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
+        self.df_hold = df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self, df):
         if self.interval!=1:
@@ -81,16 +78,18 @@ class MetaStrat():
             ## 提取的index非连续，复原到原来的连续交易日index
             real_df.index = df.index
             return real_df
-        return False
+        return df
     # 运行策略
     def run(self):
         self.get_hold()
-        #self.get_interval()
         df_hold = self.get_interval(self.df_hold)
-        if df_hold:
-            # 如果不是每日再平衡的话，可能会有品种一只持仓为0，去掉一直持仓为0的品种
-            always_not_hold = (df_hold==0).all()
-            self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
+        # 去掉一直持仓为0的品种
+        always_not_hold = (df_hold==0).all()
+        self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
+        #if df_hold:
+        #    # 如果不是每日再平衡的话，可能会有品种一直持仓为0，去掉一直持仓为0的品种
+        #   always_not_hold = (df_hold==0).all()
+        #    self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
         # 判断cash是否在持仓，如果在的话避免price没有cash列
         if 'cash' in self.df_hold.columns:
             self.add_cash()
@@ -106,10 +105,8 @@ class MetaStrat():
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)
         self.net = (self.returns+1).cumprod()
-        # 获得真实持仓市值与持仓张数(净值需要interval)
+        # 为了准确计算换手率，需要获得真实持仓市值与持仓张数(净值需要interval)
         net = self.get_interval(self.net)
-        if not net:
-            net = self.net
         self.df_amount = self.df_amount.mul(list(net.values), axis=0)
         self.df_hold = self.df_hold.mul(list(net.values), axis=0)
         # 交易金额
