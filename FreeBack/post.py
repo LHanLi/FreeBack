@@ -362,14 +362,14 @@ class StratPost(ReturnsPost):
         #self.strat = strat0
         self.market = market
         self.turnover = strat0.turnover 
-        self.df_hold = strat0.df_hold
-        self.df_amount = strat0.df_amount
+        self.df_weight = strat0.df_weight
+        self.df_contri = strat0.df_contri
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf, fast)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
-        if 'cash' in self.df_hold.columns: 
-            self.df_details.loc[3, 'col0'] = (self.df_hold.drop(columns='cash')==0).all(axis=1).sum()
+        if 'cash' in self.df_weight.columns: 
+            self.df_details.loc[3, 'col0'] = (self.df_weight.drop(columns='cash')==0).all(axis=1).sum()
         else:
             self.df_details.loc[3, 'col0'] = 0 
         # 策略执行
@@ -386,12 +386,13 @@ class StratPost(ReturnsPost):
         check_output()
         plt.savefig('./output/turnover.png')
         plt.show()
+    # 输出每根K线的持仓、个股仓位、个股收益贡献（费前）、收益率、换手率
     def get_holdtable(self):
         # 持仓数量
-        held = pd.DataFrame(self.df_hold.stack()[self.df_hold.stack()!=0]).\
-                    rename(columns={0:'hold'})
-        # 持仓金额
-        held = held.join(pd.DataFrame(self.df_amount.stack()).rename(columns={0:'amount'}))
+        held = pd.DataFrame(self.df_weight.stack()[self.df_weight.stack()!=0]).\
+                    rename(columns={0:'weight'})
+        # 持仓标的收益贡献
+        held = held.join(pd.DataFrame(self.df_contri.shift(-1).stack()).rename(columns={0:'contri'}))
         # 是否加入持仓品种名称
         try:
             if 'name' in self.market.columns:
@@ -400,36 +401,39 @@ class StratPost(ReturnsPost):
         except:
             pass
         self.held = held
-        # 持仓表(名称，代码，持仓量，持仓额)
+        # 持仓表(名称，代码，持仓量，持仓占比)
         result_hold = pd.DataFrame()
         for date in self.held.index.get_level_values(0).unique():
-            temp = self.held.loc[date].sort_values(by='amount', ascending=False)
+            temp = self.held.loc[date].sort_values(by='weight', ascending=False)
             iamount = 0
             for idx,val in temp.iterrows():
                 if 'name' in self.market.columns:
                     keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
-                        str(round(100*val['amount']/self.net.loc[date], 2))+'%'
+                        str(round(100*val['weight'], 2))+'%'+\
+                            ', 收益率：'+('%03d'%(1e4*val['contri']) if type(val['contri']) else 'nan')
                 else:
-                    keystring = str(idx) + ', 仓位：'+str(round(100*val['amount']/\
-                                                             self.net.loc[date], 2))+'%'
+                    keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
+                            ', 收益率：'+('%03d'%(1e4*val['contri']) if type(val['contri']) else 'nan')
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
-        result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
-        result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,2)).rename(columns={0:'换手率(%)'}))
+        result_hold = result_hold.join(pd.DataFrame(10000*self.returns).\
+                                       rename(columns={0:'收益率(万)'}))
+        result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,\
+                                                        2)).rename(columns={0:'换手率(%)'}))
         result_hold.index.name = '日期'
         self.result_hold = result_hold.sort_index(ascending=False)
         # excel列名
         import string
         A2Z = [i for i in string.ascii_uppercase]
         excel_columns = A2Z + [i+j for i in A2Z for j in A2Z]
-        # 第一列是日期，宽度15，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度18
+        # 第一列是日期，宽度15或30，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度12
         if 'name' in self.market.columns:
-            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
-                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
+            col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
         else:
-            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
-                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
-        FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:25})
+            col_width = {'A':20}|{excel_columns[1+i]:40 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
+        FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:35})
 
 
 
