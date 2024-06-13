@@ -50,8 +50,13 @@ class ReturnsPost():
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
         else: 
+            # 基准指数
+            if benchmark==0:
+                benchmark = pd.DataFrame(index = self.returns.index)
+                benchmark['zero'] = 0
+                self.benchmark = benchmark
             self.sigma_benchmark = np.exp(np.log(self.benchmark[\
-            self.benchmark.columns[0]]+1).std())-1
+                self.benchmark.columns[0]]+1).std())-1
             self.cal_detail()
             self.detail()
     # 详细评价表
