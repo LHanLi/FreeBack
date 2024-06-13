@@ -410,10 +410,10 @@ class StratPost(ReturnsPost):
                 if 'name' in self.market.columns:
                     keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
                         str(round(100*val['weight'], 2))+'%'+\
-                            ', 收益率：'+('%03d'%(1e4*val['contri']) if type(val['contri']) else 'nan')
+                            ', 收益率：'+('%03d'%(1e4*val['contri']) if val['contri']!=np.nan else 'nan')
                 else:
                     keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
-                            ', 收益率：'+('%03d'%(1e4*val['contri']) if type(val['contri']) else 'nan')
+                            ', 收益率：'+('%03d'%(1e4*val['contri']) if val['contri']!=np.nan else 'nan')
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
         result_hold = result_hold.join(pd.DataFrame(10000*self.returns).\
