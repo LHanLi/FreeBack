@@ -218,12 +218,19 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
                                 +[('num_format', '#,##0.0')]))
     format_date = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
                                 +[('num_format', 'yyyy-mm-dd')]))
+    format_time = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
+                                +[('num_format', 'yyyy-mm-dd-hh-MM')]))
     def judge_format(text):
         return format
         # 标题与序号 
     if index:
-        if (type(df.index[0])==datetime.date) | (type(df.index[0])==type(df.index[0])):
-            worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_date)
+        if (type(df.index[0])==datetime.date):
+            if (df.index[0].hour+df.index[0].minute)==0:
+                # 日期格式
+                worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_date)
+            else:
+                # 精确到分钟
+                worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_time)
         else:
             worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_text)
         if title:
