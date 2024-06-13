@@ -392,7 +392,8 @@ class StratPost(ReturnsPost):
         held = pd.DataFrame(self.df_weight.stack()[self.df_weight.stack()!=0]).\
                     rename(columns={0:'weight'})
         # 持仓标的收益贡献
-        held = held.join(pd.DataFrame(self.df_contri.shift(-1).stack()).rename(columns={0:'contri'}))
+        held = held.join(pd.DataFrame(self.df_contri.shift(-1).stack()).\
+                         rename(columns={0:'contri'})).fillna(0)
         # 是否加入持仓品种名称
         try:
             if 'name' in self.market.columns:
