@@ -13,6 +13,7 @@ import pandas as pd
 # 择股策略、元策略
 class MetaStrat():
     # 'inexclude':,
+        # False,  不排除
         # 当格式为('include', False)时， 'bool'列为筛选条件, 'bool'为True为符合条件的证券
         # 格式为（False, 'exclude'), 'bool'列为排除条件, 'bool'为False为符合条件的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
@@ -20,7 +21,7 @@ class MetaStrat():
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
     # price，当前日期可以获得的价格数据,可以使用 'close'收盘价（有一点未来信息），或者下根bar开盘价/TWAP/VWAP
-    def __init__(self, inexclude, score=None, hold_num=None, market=None, price='close', interval=1):
+    def __init__(self, market, inexclude, score=None, hold_num=None, price='close', interval=1):
         self.inexclude = inexclude
         self.score = score
         self.hold_num = hold_num
@@ -41,6 +42,9 @@ class MetaStrat():
         self.market = pd.concat([self.market, cash]).sort_values('date')
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
+        if self.inexclude==False:
+            self.market['include'] = True
+            self.inexclude = ('include', False)
         # 按列表持股
         if type(self.inexclude)==list:
             if 'cash' in (self.inexclude):
