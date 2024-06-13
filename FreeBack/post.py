@@ -331,7 +331,9 @@ class ReturnsPost():
         name = (lambda x: 0 if x==None else x)(df.name) 
         df = df.reset_index()
         # 筛出同月数据
-        df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
+        df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(days=x.day-1,\
+                                    hours=x.hour, minutes=x.minute, \
+                                        seconds=x.second, microseconds=x.microsecond))
         df = df[['month', name]]
         df = df.set_index('month')[name]
         # 月度收益 %
