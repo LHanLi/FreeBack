@@ -161,8 +161,8 @@ class ComboStrat(MetaStrat):
             strati = self.strats[i]
             strati.market = self.market.loc[stat_days[i]]
             strati.price = self.price
-            print('状态%s交易日：'%i, len(stat_days[i]))
-            if len(stat_days)==0:
+            print('状态%s bars：'%i, len(stat_days[i]))
+            if len(stat_days[i])==0:
                 continue
             strati.get_hold()
             df_holds.append(strati.df_hold)
