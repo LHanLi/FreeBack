@@ -123,11 +123,14 @@ class MetaStrat():
 # 组合策略、择时策略
 # 根据择时条件选择陪着不同的择股策略
 # conds = [满足条件0的交易日（index或lsit），满足条件1的交易日, ..., 满足条件n的交易日]
-# strats =[条件0对应策略0（MetaStrat）,   非条件0且条件1对应策略1, ... , 非条件0到条件n-1且条件n对应策略n， 剩余时间执行条件n+1]
+# strats =[条件0对应策略0（MetaStrat）,   非条件0且条件1对应策略1, ... , 非条件0到条件n-1且条件n对应策略n， 剩余时间执行策略n+1]
 class ComboStrat(MetaStrat):
     def __init__(self, conds, strats, market, price='close', interval=1):
         self.conds = conds
         self.strats = strats
+        # 如果状态数和策略数相同，呢么默认空余状态使用最后一个策略
+        if len(strats)==len(conds):
+            self.strats.append(strats[-1])
         self.market = market
         self.price = price
         self.interval = interval
@@ -135,7 +138,7 @@ class ComboStrat(MetaStrat):
         # 策略择时模块,将全部交易日按择时条件划分
         # 满足条件0为
         all_days = self.market.index.get_level_values(0).unique()
-        print('全部交易日:', len(all_days))
+        print('共:', len(all_days), 'bars')
         stat_days = []
         left_days = all_days
         # 从第一个择时条件开始筛选
@@ -151,12 +154,6 @@ class ComboStrat(MetaStrat):
             stat_days.append(stati_days)
             left_days = left_days_
         stat_days.append(left_days)
-        # 检查状态是否完全覆盖总交易日
-        if len(all_days)==sum([len(i) for i in stat_days]):
-            pass
-        else:
-            print('have tradedays not cover')
-            return
         # 子策略模块
         # stati对应strati对应df_holdi
         df_holds = []
@@ -165,6 +162,8 @@ class ComboStrat(MetaStrat):
             strati.market = self.market.loc[stat_days[i]]
             strati.price = self.price
             print('状态%s交易日：'%i, len(stat_days[i]))
+            if len(stat_days)==0:
+                continue
             strati.get_hold()
             df_holds.append(strati.df_hold)
         self.df_hold = pd.concat(df_holds).sort_values(by='date').fillna(0)
