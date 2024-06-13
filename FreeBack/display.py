@@ -211,7 +211,7 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
     for k,v in row_width.items():
         worksheet.set_row(k, v)
     # 格式
-    general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':1}
+    general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':True}
     format_title = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
                                 +[('font_size',14), ('bold',True),\
                                     ('bg_color','#0066ff'), ('font_color','#ffffff')]))
@@ -220,7 +220,7 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
     format_date = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
                                 +[('num_format', 'yyyy-mm-dd')]))
     format_time = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
-                                +[('num_format', '%Y-%m-%d %H:%M')]))
+                                +[('num_format', 'yyyy-mm-dd hh:MM')]))
     def judge_format(text):
         return format
         # 标题与序号 
