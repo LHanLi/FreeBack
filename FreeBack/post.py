@@ -363,9 +363,11 @@ class StratPost(ReturnsPost):
                  benchmark=0, stratname='策略', rf=0.03, fast=False, comm=0):
         #self.strat = strat0
         self.market = market
-        self.turnover = strat0.turnover 
+        self.comm = comm
+        self.turnover = strat0.turnover
+        self.df_turnover = strat0.df_turnover 
         self.df_weight = strat0.df_weight
-        self.df_contri = strat0.df_contri
+        self.df_contri = strat0.df_contri-strat0.df_turnover*strat0.df_weight*comm
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf, fast)
     def detail(self):
         # 空仓时间
