@@ -14,8 +14,8 @@ import pandas as pd
 class MetaStrat():
     # 'inexclude':,
         # False,  不排除
-        # 当格式为('include', False)时， 'bool'列为筛选条件, 'bool'为True为符合条件的证券
-        # 格式为（False, 'exclude'), 'bool'列为排除条件, 'bool'为False为符合条件的证券
+        # 'include'， 'include'列为bool值，为True为符合条件的证券
+        # 'exclude'  'exclude列为bool值, 为True为排除的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
     # 'score':float,   按score列由大到小选取证券,等权持有
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
@@ -42,9 +42,9 @@ class MetaStrat():
         self.market = pd.concat([self.market, cash]).sort_values('date')
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
-        if self.inexclude==False:
-            self.market['include'] = True
-            self.inexclude = ('include', False)
+        #if self.inexclude==False:
+        #    self.market['include'] = True
+        #    self.inexclude = ('include', False)
         # 按列表持股
         if type(self.inexclude)==list:
             if 'cash' in (self.inexclude):
@@ -52,9 +52,9 @@ class MetaStrat():
             df_hold = self.market.loc[:, self.inexclude, :]
         # 按排除、排序规则持股，避免持有退市前最后一天股票
         else:
-            keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x[0])&(not x[1]) \
-                            else self.market[(~self.market['Z'])&self.market[x[0]]] if x[0] \
-                                else self.market[(~self.market['Z'])&(~self.market[x[1]])])\
+            keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x) \
+                            else self.market[(~self.market['Z'])&self.market[x]] if x=='include' \
+                                else self.market[(~self.market['Z'])&(~self.market[x])])\
                                     (self.inexclude)[self.score].\
                                         groupby('date').rank(ascending=False, pct=(self.hold_num<1))
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
