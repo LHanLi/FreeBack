@@ -113,10 +113,10 @@ class MetaStrat():
         delta_hold = self.df_hold-self.df_hold.shift().fillna(0)
         self.delta_amount = (delta_hold*self.df_price).fillna(0)
         # cash的变化不会带来换手，可能没有‘cash'列
+        self.df_turnover = abs(self.delta_amount.div(self.net, axis=0))
         if 'cash' in self.df_hold.columns:
-            self.turnover = abs(self.delta_amount).drop(columns='cash').sum(axis=1)/self.net
-        else:
-            self.turnover = abs(self.delta_amount).sum(axis=1)/self.net
+            self.df_turnover['cash'] = 0
+        self.turnover = self.df_turnover.sum(axis=1)
 
 
 
