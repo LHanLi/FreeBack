@@ -67,7 +67,7 @@ class ReturnsPost():
         #self.returns.index.name = 'date'
         self.bars = len(self.returns)  
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
-        self.return_total = self.net[-1]/self.net[0]-1                    
+        self.return_total = self.net.iloc[-1]/self.net.iloc[0]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
         self.sigma = np.exp(self.lr.std())-1 
         self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
@@ -76,7 +76,7 @@ class ReturnsPost():
         # 超额表现
         self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
         self.excess_net = np.exp(self.excess_lr.cumsum())
-        self.excess_total = self.excess_net[-1]/self.excess_net[0]
+        self.excess_total = self.excess_net.iloc[-1]/self.excess_net.iloc[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
         self.excess_sigma = np.exp(self.excess_lr.std())-1
         self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(250))
