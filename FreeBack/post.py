@@ -25,7 +25,8 @@ def check_output():
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
 ##########################################################################################
 class ReturnsPost():
-    # benchmark dataframe 收益率序列
+    # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
+    # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准 
     def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03, fast=False):
         self.stratname = stratname
         self.returns = returns.fillna(0)
