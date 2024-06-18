@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import statsmodels.api as sm
 from numpy_ext import rolling_apply
 from joblib import Parallel, delayed
 import copy, math
@@ -325,7 +326,6 @@ def cal_corr(df, x_name, y_name, n, parallel=True, n_core=12):
 # x_name list, y_nmae column
 # 截面多元线性回归
 def cal_CrossReg(df, x_name, y_name, residual=False):
-    import statsmodels.api as sm
     # 使用sm模块
     result = df.groupby('date', sort=False).apply(lambda d:\
                  sm.OLS(d[y_name], sm.add_constant(d[x_name])).fit())
