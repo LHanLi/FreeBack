@@ -1,3 +1,5 @@
+backtest，stock, option, future，factor investing, portfiolio analyis
+
 # -----------------------Module------------------------
 
 **strat**： 择股和择时策略的快速回测框架
@@ -18,7 +20,11 @@
 从pypi安装:
 
             pip install FreeBack
-从github安装： pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
+
+从github安装： 
+
+            pip3 install --upgrade --user   git+https://github.com/LHanLi/FreeBack.git
+
             python setup.py develop
 
 # ----------------------Hello world-----------------------
