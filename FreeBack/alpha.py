@@ -4,6 +4,14 @@ from scipy import stats
 import statsmodels.api as sm
 import FreeBack as FB
 import os
+
+# 结果文件保存于output中
+def check_output():
+    if 'output' in os.listdir():
+        pass
+    else:
+        os.mkdir('output')
+
 # 该模块包含：
 # 因子计算常用函数
 # 单因子与多因子检验模块（组合法、回归法）
@@ -368,10 +376,7 @@ class Portfolio():
         #ax.set_xlabel('日期')
         ax2.set_ylabel('持有数量')
         plt.gcf().autofmt_xdate()
-        if 'output' in os.listdir():
-            pass
-        else:
-            os.mkdir('output')
+        check_output()
         plt.savefig('./output/alpha-Portfolio-HoldReturn.png',\
                      bbox_inches='tight')
         plt.show()
@@ -412,10 +417,7 @@ class Portfolio():
         ax.set_xlabel('Date')
         ax.set_xlim(dateleft, dateright)
         plt.gcf().autofmt_xdate()
-        if 'output' in os.listdir():
-            pass
-        else:
-            os.mkdir('output')
+        check_output()
         plt.savefig('./output/alpha-Portfolio-LogCompare.png',\
                      bbox_inches='tight')
         plt.show()
@@ -438,10 +440,7 @@ class Portfolio():
         ax.legend(bbox_to_anchor=(0.5,-0.3), loc=10, ncol=3)
         plt.xticks(x, list(df_returns.index), fontsize=20)
         ax.set_ylabel("(%)")
-        if 'output' in os.listdir():
-            pass
-        else:
-            os.mkdir('output')
+        check_output()
         plt.savefig('./output/alpha-Portfolio-Bar.png',\
                      bbox_inches='tight')
         plt.show()
@@ -483,33 +482,30 @@ class Portfolio():
         ax.set_xlabel('Date')
         ax.set_xlim(self.returns.index[0], self.returns.index[-1])
         plt.gcf().autofmt_xdate()
-        if 'output' in os.listdir():
-            pass
-        else:
-            os.mkdir('output')
+        check_output()
         plt.savefig('./output/alpha-Portfolio-FactorThreshold.png',\
                      bbox_inches='tight')
         plt.show()
 
 
 
-# 因子分组计算
-# market, 分组变量1， 分组变量2， 分组数，取平均值变量(T日的未来收益)
-def FactorGroup(market, group_value0, group_value1=None,\
+# 因子分组统计(可以统计收益率，也可以统计其他变量，例如未来20日的波动率等)
+# market, 分组变量1， 分组变量2， 分组数，统计变量，延迟周期
+def FactorGroup(market_factor, group_value0, group_value1=None,\
         group_value0_num=5, group_value1_num=3, returns_key='f-returns', delay=0,\
             level0s=None, level1s=None):
-    market_factor = market.copy()
+    #market_factor = market.copy()
+    # 获得分组变量
+    # 对于连续因子由小到大等分,滞后delay期。
     if market_factor[group_value0].dtype in [float, np.int64]:
         group0 = 'group_' + group_value0
         market_factor[group0] = Rank(market_factor[group_value0]).groupby('code'\
                                 ).shift(delay).dropna().map(lambda x: int(x*group_value0_num))
-        #threshold = [market[group_value0].quantile(i/group_value0_num) \
-        #             for i in range(group_value0_num+1)]
-        #market_factor[group0] = pd.cut(market[group_value0],\
-        #                                bins=threshold).groupby('code').shift(delay).dropna()
+    # 对于离散因子按原因子分组,滞后delay期。
     else:
         group0 = group_value0
         market_factor[group0] = market_factor[group0].groupby('code').shift(delay).dropna()
+    # 单因子分组情形
     if group_value1==None:
         group = market_factor.groupby([group0, 'date'])
         result_returns = group[returns_key].mean()
@@ -524,7 +520,8 @@ def FactorGroup(market, group_value0, group_value1=None,\
         ax.set_ylabel('累计收益率（单利）')
         ax1.set_ylabel('分组个数')
         ax.set_xlim(market_factor.index[0][0], market_factor.index[-1][0])
-        plt.savefig('MutiFactorGroup.png')
+        check_output()
+        plt.savefig('output/FactorGroup.png')
         return
     # 计算指标的分组标签
     if market_factor[group_value1].dtype in [float, np.int64]:
