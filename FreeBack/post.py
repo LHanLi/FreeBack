@@ -27,9 +27,15 @@ def check_output():
 class ReturnsPost():
     # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
     # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准 
-    def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03, fast=False):
+    def __init__(self, returns, benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False):
         self.stratname = stratname
         self.returns = returns.fillna(0)
+        # returns频率， 目前支持day, week
+        if freq not in ['day', 'week']:
+            print('输入频率错误')
+            return
+        else:
+            self.freq = freq
         # 无风险利率
         self.rf = rf
         if fast:
@@ -41,7 +47,10 @@ class ReturnsPost():
             self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
             self.return_annual = (self.return_total+1)**(1/self.years)-1   
             self.sigma = np.exp(self.lr.std())-1
-            self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+            if self.freq == 'day':
+                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+            elif self.freq == 'week':
+                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(48))
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
             # 基准指数
@@ -65,13 +74,17 @@ class ReturnsPost():
         # 策略绝对表现
         self.net = (1+self.returns).cumprod()
         self.lr = np.log(self.returns + 1)
-        #self.returns.index.name = 'date'
         self.bars = len(self.returns)  
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
         self.return_total = self.net.iloc[-1]/self.net.iloc[0]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
-        self.sigma = np.exp(self.lr.std())-1 
-        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        self.sigma = np.exp(self.lr.std())-1
+        # 一年多少个bar
+        if self.freq == 'day':
+            self.anunal_num = 250
+        elif self.freq == 'week':
+            self.anunal_num = 48
+        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(self.anunal_num))
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
         # 超额表现
@@ -80,7 +93,7 @@ class ReturnsPost():
         self.excess_total = self.excess_net.iloc[-1]/self.excess_net.iloc[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
         self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(250))
+        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(self.anunal_num))
         a = np.maximum.accumulate(self.excess_net)
         self.excess_drawdown = (a-self.excess_net)/a
         # CAPM (无风险收益为0)
@@ -95,7 +108,10 @@ class ReturnsPost():
         #model.summary()
 
         col0 = pd.DataFrame(columns=['col0'])
-        col0.loc[0] = '回测时间（年, 日）'
+        if self.freq == 'day':
+            col0.loc[0] = '回测时间（年, 日）'
+        elif self.freq == 'week':
+            col0.loc[0] = '回测时间（年, 周）'
         col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '年化收益率（%）'
@@ -113,12 +129,12 @@ class ReturnsPost():
         col3.loc[2] = '超额最大回撤（%）'
         col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
         col3.loc[4] = '波动率（%）'
-        col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
+        col3.loc[5] = round(self.sigma*np.sqrt(self.anunal_num)*100, 1)
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = 'beta系数'
         col4.loc[1] = round(self.beta,2)
         col4.loc[2] = 'alpha（%）'
-        col4.loc[3] = round(self.alpha*250*100,1)
+        col4.loc[3] = round(self.alpha*self.anunal_num*100,1)
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
         col5.loc[1] = round(self.sharpe,2)
@@ -144,8 +160,8 @@ class ReturnsPost():
                             ColumnDefinition(name="col4", group='风险调整'), \
                             ColumnDefinition(name="col5", group='风险调整'), \
                             ColumnDefinition(name="col6", group='策略执行'),
-                            ColumnDefinition(name="col7", group='业绩持续性分析')] +\
-                            [ColDef("index", title="", width=1.5, textprops={"ha":"right"})]
+                            ColumnDefinition(name="col7", group='业绩持续性分析')] + \
+                             [ColDef("index", title="", width=0, textprops={"ha":"right"})]
         tab = Table(self.df_details, row_dividers=False, col_label_divider=False, 
                     column_definitions=column_definitions,
                     odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
@@ -249,18 +265,18 @@ class ReturnsPost():
     def rolling_return(self, key='return'):
         plt, fig, ax = FB.display.matplot()
         if key=='return':
-            ax.plot((self.net/self.net.shift(120)-1)*100, c='C0', label='滚动半年收益')
+            ax.plot((self.net/self.net.shift(self.anunal_num//2)-1)*100, c='C0', label='滚动半年收益')
             ax2 = ax.twinx()
-            ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='滚动年度收益')
+            ax2.plot((self.net/self.net.shift(self.anunal_num)-1)*100, c='C3', label='滚动年度收益')
             ax.legend(loc='upper left')
             ax2.legend(loc='upper right')
             ax.set_ylabel('(%)')
             ax2.set_ylabel('(%)')
         elif key=='sharpe':
-            halfyearly_sharpe = (np.exp(self.lr.rolling(120).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(120).std())-1)*np.sqrt(250))
-            yearly_sharpe = (np.exp(self.lr.rolling(250).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(250).std())-1)*np.sqrt(250))
+            halfyearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num//2).mean()*self.anunal_num)-1)/\
+            ((np.exp(self.lr.rolling(self.anunal_num//2).std())-1)*np.sqrt(self.anunal_num))
+            yearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num).mean()*self.anunal_num)-1)/\
+            ((np.exp(self.lr.rolling(self.anunal_num).std())-1)*np.sqrt(self.anunal_num))
             ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
             ax2 = ax.twinx()
             ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
