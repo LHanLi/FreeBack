@@ -135,6 +135,7 @@ class Portfolio():
         if type(holdweight) != type(None):
             # 没有权重则按0计
             holdweight = holdweight.fillna(0)
+            holdweight = pd.DataFrame(holdweight.rename('weight')).pivot_table('weight', 'date' ,'code')
             self.holdweight = holdweight.apply(lambda x: x/x.sum(), axis=1)
         else:
             self.holdweight = None
