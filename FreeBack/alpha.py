@@ -288,6 +288,7 @@ class Portfolio():
             duryears = (self.returns.index[-1] - self.returns.index[0]).days/365
             # 多空组合
             LS_returns = self.mat_lr[i][-2] - self.mat_lr[i][0]
+            # 后续改成简单收益率相减，类似的还有不少-zzq
             LS_std = LS_returns.std()*np.sqrt(250)
             LS_return_annual = np.exp(LS_returns.sum()/duryears) - 1
             LS_sharpe = (LS_return_annual-0.03)/LS_std
