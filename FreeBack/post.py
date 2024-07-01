@@ -371,6 +371,49 @@ class BatchPost():
 
 
 
+
+##########################################################################################
+####################### 分析基金收益率 ###########################
+##########################################################################################
+class FundPost(ReturnsPost):
+    def __init__(self, returns, benchmark=None, fundname='基金名称', rf = 0.03, fast=False):
+        super().__init__(returns, benchmark=benchmark, stratname=fundname, freq='week', rf=rf, fast=fast)
+
+    # 判断策略的因子暴露
+    # fsr : dateindex, dataframe, 简单收益率, 当天收益率
+    def factor_expose(self, fsr):
+        sr0 = self.returns
+        ind = fsr.index.map(lambda x: x.year).unique()
+        df = pd.DataFrame(index=ind, columns=fsr.columns)
+        df.loc[9999] = np.nan
+        for i in df.index:
+            r2, alpha = cal_ols(x=fsr, y=sr0)
+            for j in df.columns:
+                if i == 9999:
+                    r2, alpha = cal_ols(x=fsr[[j]], y=sr0)
+                    df.loc[i, j] = r2*100
+                else:
+                    r2, alpha = cal_ols(x=fsr[[j]].loc[str(i)], y=sr0.loc[str(i)])
+                    df.loc[i, j] = r2*100
+        df = df.astype('float')
+        self.fexpose = df
+        return df
+    
+    # 收益率分布直方图
+    def returns_displot(self, bins=20):
+        import seaborn as sns 
+        plt.figure(figsize=(12, 8))  #设置画布的大小
+        sns.set_palette("hls")       #设置所有图的颜色，使用hls色彩空间
+        sns.displot(self.returns*100, color="steelblue",bins=bins)
+        plt.xlabel('收益率(%)',fontsize=15)           #添加x轴标签，并改变字体
+        plt.ylabel('频数',fontsize=15)   #添加y轴变浅，并改变字体
+        plt.grid(linestyle='-')   #添加网格线
+        plt.xticks(fontsize=12)   #改变x轴字体大小
+        plt.yticks(fontsize=12)   #改变y轴字体大小
+        sns.despine(ax=None, top=True, right=True, left=True, bottom=True)    #将图像的框框删掉
+        plt.show()
+
+
 ############################################################################################
 ################################### 处理Strat对象 ##############################################
 ############################################################################################
