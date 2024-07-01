@@ -379,9 +379,19 @@ class FundPost(ReturnsPost):
     def __init__(self, returns, benchmark=None, fundname='基金名称', rf = 0.03, fast=False):
         super().__init__(returns, benchmark=benchmark, stratname=fundname, freq='week', rf=rf, fast=fast)
 
-    # 判断策略的因子暴露
+    # 计算策略的因子暴露
     # fsr : dateindex, dataframe, 简单收益率, 当天收益率
     def factor_expose(self, fsr):
+        # 简单线性回归
+        def cal_ols(x, y):
+            x = x.values
+            y = y.values
+            X = sm.add_constant(x)
+            model = sm.OLS(y, X)
+            results = model.fit()
+            r2 = results.rsquared
+            alpha = results.params[0]
+            return r2, alpha
         sr0 = self.returns
         ind = fsr.index.map(lambda x: x.year).unique()
         df = pd.DataFrame(index=ind, columns=fsr.columns)
