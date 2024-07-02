@@ -830,18 +830,18 @@ class WorldPost():
         plt.gcf().autofmt_xdate()
         plt.savefig('trade.png')
         plt.show()
-    def trade_monthly(self):
-        # 月度盈利（亏损）交易的次数与平均盈利（亏损）。
-        count_win = self.trades_win.groupby('month').sum()
-        count_loss = self.trades_loss.groupby('month').sum()
-#        mean_win = trades[trades_win[0]].groupby('month').mean()
-#        mean_loss = trades[trades_loss[0]].groupby('month').mean()
-        # 月度胜率和盈亏比
-        self.month_winrate = count_win/(count_win + count_loss)
-#        self.month_odds = -mean_win/mean_loss
-        plt,fig,ax = month_thermal(self.month_winrate, 0.5)
-        plt.savefig('trade_monthly.png') 
-        plt.show()
+#     def trade_monthly(self):
+#         # 月度盈利（亏损）交易的次数与平均盈利（亏损）。
+#         count_win = self.trades_win.groupby('month').sum()
+#         count_loss = self.trades_loss.groupby('month').sum()
+# #        mean_win = trades[trades_win[0]].groupby('month').mean()
+# #        mean_loss = trades[trades_loss[0]].groupby('month').mean()
+#         # 月度胜率和盈亏比
+#         self.month_winrate = count_win/(count_win + count_loss)
+# #        self.month_odds = -mean_win/mean_loss
+#         plt,fig,ax = month_thermal(self.month_winrate, 0.5)
+#         plt.savefig('trade_monthly.png') 
+#         plt.show()
 # 仓位分析
     def position(self):
         plt, fig, ax = FB.display.matplot()
