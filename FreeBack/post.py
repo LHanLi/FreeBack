@@ -831,6 +831,7 @@ class WorldPost():
         plt.savefig('trade.png')
         plt.show()
     def trade_monthly(self):
+        from display import month_thermal
         # 月度盈利（亏损）交易的次数与平均盈利（亏损）。
         count_win = self.trades_win.groupby('month').sum()
         count_loss = self.trades_loss.groupby('month').sum()
