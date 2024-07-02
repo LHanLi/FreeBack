@@ -378,7 +378,7 @@ class BatchPost():
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', rf=0.03, fast=False, comm=0):
+                 benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False, comm=0):
         #self.strat = strat0
         self.market = market
         self.comm = comm
@@ -387,7 +387,7 @@ class StratPost(ReturnsPost):
         self.df_weight = strat0.df_weight
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
-                                benchmark, stratname, rf, fast)
+                                benchmark, stratname, freq, rf, fast)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
