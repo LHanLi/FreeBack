@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import pandas as pd
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 import seaborn as sns
 from pyecharts import options as opts
@@ -210,7 +211,7 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
     for k,v in row_width.items():
         worksheet.set_row(k, v)
     # 格式
-    general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':1}
+    general_prop = {'font_size':10, 'align':'center', 'valign':'vcenter', 'text_wrap':True}
     format_title = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
                                 +[('font_size',14), ('bold',True),\
                                     ('bg_color','#0066ff'), ('font_color','#ffffff')]))
@@ -218,12 +219,20 @@ def write_df(df, name, title=True, index=True, col_width={}, row_width={}):
                                 +[('num_format', '#,##0.0')]))
     format_date = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
                                 +[('num_format', 'yyyy-mm-dd')]))
+    format_time = workbook.add_format(dict([(k,general_prop[k]) for k in general_prop]\
+                                +[('num_format', 'yyyy-mm-dd hh:MM')]))
     def judge_format(text):
         return format
         # 标题与序号 
     if index:
-        if (type(df.index[0])==datetime.date) | (type(df.index[0])==type(df.index[0])):
-            worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_date)
+        if (type(df.index[0])==type(datetime.date))|\
+            (type(df.index[0])==type(pd.to_datetime('2000'))):
+            if (df.index[0].hour+df.index[0].minute)==0:
+                # 日期格式
+                worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_date)
+            else:
+                # 精确到分钟
+                worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_time)
         else:
             worksheet.write_column("A%s"%(int(title)+1), list(df.index), format_text)
         if title:

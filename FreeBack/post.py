@@ -25,10 +25,17 @@ def check_output():
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
 ##########################################################################################
 class ReturnsPost():
-    # benchmark dataframe 收益率序列
-    def __init__(self, returns, benchmark=0, stratname='策略', rf=0.03, fast=False):
+    # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
+    # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准 
+    def __init__(self, returns, benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False):
         self.stratname = stratname
         self.returns = returns.fillna(0)
+        # returns频率， 目前支持day, week
+        if freq not in ['day', 'week']:
+            print('输入频率错误')
+            return
+        else:
+            self.freq = freq
         # 无风险利率
         self.rf = rf
         if fast:
@@ -40,7 +47,10 @@ class ReturnsPost():
             self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
             self.return_annual = (self.return_total+1)**(1/self.years)-1   
             self.sigma = np.exp(self.lr.std())-1
-            self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+            if self.freq == 'day':
+                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+            elif self.freq == 'week':
+                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(48))
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
             # 基准指数
@@ -57,7 +67,7 @@ class ReturnsPost():
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
             self.sigma_benchmark = np.exp(np.log(self.benchmark[\
-            self.benchmark.columns[0]]+1).std())-1
+                self.benchmark.columns[0]]+1).std())-1
             self.cal_detail()
             self.detail()
     # 详细评价表
@@ -65,22 +75,26 @@ class ReturnsPost():
         # 策略绝对表现
         self.net = (1+self.returns).cumprod()
         self.lr = np.log(self.returns + 1)
-        #self.returns.index.name = 'date'
         self.bars = len(self.returns)  
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
-        self.return_total = self.net[-1]/self.net[0]-1                    
+        self.return_total = self.net.iloc[-1]/self.net.iloc[0]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
-        self.sigma = np.exp(self.lr.std())-1 
-        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        self.sigma = np.exp(self.lr.std())-1
+        # 一年多少个bar
+        if self.freq == 'day':
+            self.anunal_num = 250
+        elif self.freq == 'week':
+            self.anunal_num = 48
+        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(self.anunal_num))
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
         # 超额表现
         self.excess_lr = self.lr-np.log(self.benchmark[self.benchmark.columns[0]]+1)
         self.excess_net = np.exp(self.excess_lr.cumsum())
-        self.excess_total = self.excess_net[-1]/self.excess_net[0]
+        self.excess_total = self.excess_net.iloc[-1]/self.excess_net.iloc[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
         self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(250))
+        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(self.anunal_num))
         a = np.maximum.accumulate(self.excess_net)
         self.excess_drawdown = (a-self.excess_net)/a
         # CAPM (无风险收益为0)
@@ -95,7 +109,10 @@ class ReturnsPost():
         #model.summary()
 
         col0 = pd.DataFrame(columns=['col0'])
-        col0.loc[0] = '回测时间（年, 日）'
+        if self.freq == 'day':
+            col0.loc[0] = '回测时间（年, 日）'
+        elif self.freq == 'week':
+            col0.loc[0] = '回测时间（年, 周）'
         col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '年化收益率（%）'
@@ -113,12 +130,12 @@ class ReturnsPost():
         col3.loc[2] = '超额最大回撤（%）'
         col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
         col3.loc[4] = '波动率（%）'
-        col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
+        col3.loc[5] = round(self.sigma*np.sqrt(self.anunal_num)*100, 1)
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = 'beta系数'
         col4.loc[1] = round(self.beta,2)
         col4.loc[2] = 'alpha（%）'
-        col4.loc[3] = round(self.alpha*250*100,1)
+        col4.loc[3] = round(self.alpha*self.anunal_num*100,1)
         col5 = pd.DataFrame(columns=['col5'])
         col5.loc[0] = '夏普比率'
         col5.loc[1] = round(self.sharpe,2)
@@ -144,8 +161,8 @@ class ReturnsPost():
                             ColumnDefinition(name="col4", group='风险调整'), \
                             ColumnDefinition(name="col5", group='风险调整'), \
                             ColumnDefinition(name="col6", group='策略执行'),
-                            ColumnDefinition(name="col7", group='业绩持续性分析')] +\
-                            [ColDef("index", title="", width=1.5, textprops={"ha":"right"})]
+                            ColumnDefinition(name="col7", group='业绩持续性分析')] + \
+                             [ColDef("index", title="", width=0, textprops={"ha":"right"})]
         tab = Table(self.df_details, row_dividers=False, col_label_divider=False, 
                     column_definitions=column_definitions,
                     odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
@@ -249,18 +266,18 @@ class ReturnsPost():
     def rolling_return(self, key='return'):
         plt, fig, ax = FB.display.matplot()
         if key=='return':
-            ax.plot((self.net/self.net.shift(120)-1)*100, c='C0', label='滚动半年收益')
+            ax.plot((self.net/self.net.shift(self.anunal_num//2)-1)*100, c='C0', label='滚动半年收益')
             ax2 = ax.twinx()
-            ax2.plot((self.net/self.net.shift(250)-1)*100, c='C3', label='滚动年度收益')
+            ax2.plot((self.net/self.net.shift(self.anunal_num)-1)*100, c='C3', label='滚动年度收益')
             ax.legend(loc='upper left')
             ax2.legend(loc='upper right')
             ax.set_ylabel('(%)')
             ax2.set_ylabel('(%)')
         elif key=='sharpe':
-            halfyearly_sharpe = (np.exp(self.lr.rolling(120).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(120).std())-1)*np.sqrt(250))
-            yearly_sharpe = (np.exp(self.lr.rolling(250).mean()*250)-1)/\
-            ((np.exp(self.lr.rolling(250).std())-1)*np.sqrt(250))
+            halfyearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num//2).mean()*self.anunal_num)-1)/\
+            ((np.exp(self.lr.rolling(self.anunal_num//2).std())-1)*np.sqrt(self.anunal_num))
+            yearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num).mean()*self.anunal_num)-1)/\
+            ((np.exp(self.lr.rolling(self.anunal_num).std())-1)*np.sqrt(self.anunal_num))
             ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
             ax2 = ax.twinx()
             ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
@@ -332,7 +349,9 @@ class ReturnsPost():
         name = (lambda x: 0 if x==None else x)(df.name) 
         df = df.reset_index()
         # 筛出同月数据
-        df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(x.day-1))
+        df['month'] = df['date'].apply(lambda x: x - datetime.timedelta(days=x.day-1,\
+                                    hours=x.hour, minutes=x.minute, \
+                                        seconds=x.second, microseconds=x.microsecond))
         df = df[['month', name]]
         df = df.set_index('month')[name]
         # 月度收益 %
@@ -362,17 +381,21 @@ class StratPost(ReturnsPost):
                  benchmark=0, stratname='策略', rf=0.03, fast=False, comm=0):
         #self.strat = strat0
         self.market = market
-        self.turnover = strat0.turnover 
-        self.df_hold = strat0.df_hold
-        self.df_amount = strat0.df_amount
-        super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1, benchmark, stratname, rf, fast)
+        self.comm = comm
+        self.turnover = strat0.turnover
+        self.df_turnover = strat0.df_turnover 
+        self.df_weight = strat0.df_weight
+        self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
+        super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
+                                benchmark, stratname, rf, fast)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
-        if 'cash' in self.df_hold.columns: 
-            self.df_details.loc[3, 'col0'] = (self.df_hold.drop(columns='cash')==0).all(axis=1).sum()
+        if 'cash' in self.df_weight.columns: 
+            self.df_details.loc[3, 'col0'] = (self.df_weight.drop(columns='cash')==0\
+                                              ).all(axis=1).sum()
         else:
-            self.df_details.loc[3, 'col0'] = 0 
+            self.df_details.loc[3, 'col0'] = 0
         # 策略执行
         self.df_details.loc[0, 'col6'] = '年化换手，持股周期（日）'
         self.df_details.loc[1, 'col6'] = '%s, %s'%(round(self.turnover.sum()/self.years),\
@@ -387,12 +410,14 @@ class StratPost(ReturnsPost):
         check_output()
         plt.savefig('./output/turnover.png')
         plt.show()
+    # 输出每根K线的持仓、个股仓位、个股收益贡献（费前）、收益率、换手率
     def get_holdtable(self):
         # 持仓数量
-        held = pd.DataFrame(self.df_hold.stack()[self.df_hold.stack()!=0]).\
-                    rename(columns={0:'hold'})
-        # 持仓金额
-        held = held.join(pd.DataFrame(self.df_amount.stack()).rename(columns={0:'amount'}))
+        held = pd.DataFrame(self.df_weight.stack()[self.df_weight.stack()!=0]).\
+                    rename(columns={0:'weight'})
+        # 持仓标的收益贡献
+        held = held.join(pd.DataFrame(self.df_contri.shift(-1).stack()).\
+                         rename(columns={0:'contri'})).fillna(0)
         # 是否加入持仓品种名称
         try:
             if 'name' in self.market.columns:
@@ -401,36 +426,39 @@ class StratPost(ReturnsPost):
         except:
             pass
         self.held = held
-        # 持仓表(名称，代码，持仓量，持仓额)
+        # 持仓表(名称，代码，持仓量，持仓占比)
         result_hold = pd.DataFrame()
         for date in self.held.index.get_level_values(0).unique():
-            temp = self.held.loc[date].sort_values(by='amount', ascending=False)
+            temp = self.held.loc[date].sort_values(by='weight', ascending=False)
             iamount = 0
             for idx,val in temp.iterrows():
                 if 'name' in self.market.columns:
                     keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
-                        str(round(100*val['amount']/self.net.loc[date], 2))+'%'
+                        str(round(100*val['weight'], 2))+'%'+\
+                            ', 收益率：'+'%03d'%(1e4*val['contri'])
                 else:
-                    keystring = str(idx) + ', 仓位：'+str(round(100*val['amount']/\
-                                                             self.net.loc[date], 2))+'%'
+                    keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
+                            ', 收益率：'+'%03d'%(1e4*val['contri'])
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
-        result_hold = result_hold.join(pd.DataFrame(10000*self.returns).rename(columns={0:'收益率(万)'}))
-        result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,2)).rename(columns={0:'换手率(%)'}))
+        result_hold = result_hold.join(pd.DataFrame(10000*self.returns).\
+                                        rename(columns={0:'收益率(万)'}))
+        result_hold = result_hold.join(pd.DataFrame(round(100*self.turnover,\
+                                        2)).rename(columns={0:'换手率(%)'}))
         result_hold.index.name = '日期'
         self.result_hold = result_hold.sort_index(ascending=False)
         # excel列名
         import string
         A2Z = [i for i in string.ascii_uppercase]
         excel_columns = A2Z + [i+j for i in A2Z for j in A2Z]
-        # 第一列是日期，宽度15，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度18
+        # 第一列是日期，宽度15或30，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度12
         if 'name' in self.market.columns:
-            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
-                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
+            col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
         else:
-            col_width = {'A':8}|{excel_columns[1+i]:20 for i in range(len(self.result_hold.columns)-2)}|\
-                                {excel_columns[len(self.result_hold.columns)-1+i]:15 for i in range(2)}
-        FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:25})
+            col_width = {'A':20}|{excel_columns[1+i]:40 for i in range(len(self.result_hold.columns)-2)}|\
+                                {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
+        FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:35})
 
 
 
