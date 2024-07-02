@@ -43,7 +43,7 @@ class ReturnsPost():
             self.bars = len(self.returns)  
             self.net = (1+self.returns).cumprod()
             self.lr = np.log(self.returns + 1)
-            self.return_total = self.net[-1]/self.net[0]-1                    
+            self.return_total = self.net.iloc[-1]/self.net.iloc[0]-1                    
             self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
             self.return_annual = (self.return_total+1)**(1/self.years)-1   
             self.sigma = np.exp(self.lr.std())-1
@@ -54,17 +54,29 @@ class ReturnsPost():
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
             # 基准指数
+<<<<<<< HEAD
             if type(benchmark) == type(None):
+=======
+            if type(benchmark)==type(0):
+>>>>>>> 000
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
         else: 
             # 基准指数
+<<<<<<< HEAD
             if type(benchmark) == type(None):
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
             self.benchmark = benchmark
+=======
+            if type(benchmark)==type(0):
+                benchmark = pd.DataFrame(index = self.returns.index)
+                benchmark['zero'] = 0
+                self.benchmark = benchmark
+            self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+>>>>>>> 000
             self.sigma_benchmark = np.exp(np.log(self.benchmark[\
                 self.benchmark.columns[0]]+1).std())-1
             self.cal_detail()
@@ -430,7 +442,7 @@ class FundPost(ReturnsPost):
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', rf=0.03, fast=False, comm=0):
+                 benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False, comm=0):
         #self.strat = strat0
         self.market = market
         self.comm = comm
@@ -439,7 +451,7 @@ class StratPost(ReturnsPost):
         self.df_weight = strat0.df_weight
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
-                                benchmark, stratname, rf, fast)
+                                benchmark, stratname, freq, rf, fast)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'

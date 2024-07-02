@@ -56,7 +56,8 @@ class MetaStrat():
                             else self.market[(~self.market['Z'])&self.market[x]] if x=='include' \
                                 else self.market[(~self.market['Z'])&(~self.market[x])])\
                                     (self.inexclude)[self.score].\
-                                        groupby('date').rank(ascending=False, pct=(self.hold_num<1))
+                                        groupby('date').rank(\
+                                            ascending=False, pct=(self.hold_num<1), method='first')
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
             # 检查有无空仓情形，如果有的话就添加现金
             lost_bars = list(set(self.market.index.get_level_values(0))-\
