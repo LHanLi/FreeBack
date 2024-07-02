@@ -27,7 +27,7 @@ def check_output():
 class ReturnsPost():
     # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
     # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准 
-    def __init__(self, returns, benchmark=None, stratname='策略', freq='day', rf=0.03, fast=False):
+    def __init__(self, returns, benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False):
         self.stratname = stratname
         self.returns = returns.fillna(0)
         # returns频率， 目前支持day, week
@@ -54,29 +54,18 @@ class ReturnsPost():
             a = np.maximum.accumulate(self.net)
             self.drawdown = (a-self.net)/a
             # 基准指数
-<<<<<<< HEAD
-            if type(benchmark) == type(None):
-=======
             if type(benchmark)==type(0):
->>>>>>> 000
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
         else: 
             # 基准指数
-<<<<<<< HEAD
-            if type(benchmark) == type(None):
-                benchmark = pd.DataFrame(index = self.returns.index)
-                benchmark['zero'] = 0
-            self.benchmark = benchmark
-=======
             if type(benchmark)==type(0):
                 benchmark = pd.DataFrame(index = self.returns.index)
                 benchmark['zero'] = 0
                 self.benchmark = benchmark
             self.benchmark = benchmark.loc[self.returns.index].fillna(0)
->>>>>>> 000
             self.sigma_benchmark = np.exp(np.log(self.benchmark[\
                 self.benchmark.columns[0]]+1).std())-1
             self.cal_detail()
