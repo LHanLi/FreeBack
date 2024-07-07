@@ -77,9 +77,9 @@ def resample_fill(factor, freq='month'):
 # 没有周一和1号的月份用下一个第一个出现的值***
 def resample_select(market, freq='month'):
     if freq=='month':
-        return market[market.index.map(lambda x:getattr(x[0], 'day'))==1]
+        return market.loc[market.index.map(lambda x:getattr(x[0], 'day'))==1]
     elif freq=='week':
-        return market[market.index.map(lambda x:getattr(x[0], 'weekday')())==0]
+        return market.loc[market.index.map(lambda x:getattr(x[0], 'weekday')())==0]
 def QQ(factor, date=None):
     plt, fig, ax = FB.display.matplot(w=6, d=4)
     if date==None:
