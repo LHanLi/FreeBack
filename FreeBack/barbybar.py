@@ -69,7 +69,7 @@ class World():
                 deposit['vol'] = 1e10
                 deposit = deposit.reset_index().set_index(['date', 'code'])
                 self.market = pd.concat([market, deposit]).sort_values('date')
-                self.type_dic['deposit'] = 'other'
+                type_dic['deposit'] = 'other'
             else:
                 self.market = market
         else:
@@ -82,7 +82,7 @@ class World():
                 deposit['high'] = 1
                 deposit['vol'] = 1e10
                 deposit = deposit.reset_index().set_index(['date', 'code'])
-                self.type_dic['deposit'] = 'other'
+                type_dic['deposit'] = 'other'
                 market = market.reset_index()
                 market['code'] = 'onlyone'
                 market = market.set_index(['date', 'code'])
