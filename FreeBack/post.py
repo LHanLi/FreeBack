@@ -238,7 +238,7 @@ class ReturnsPost():
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
                 # colors of benchmark
-                colors_list = ['C4','C5','C6','C7']
+                colors_list = ['C4','C5','C6','C7', 'C8', 'C9']*10
                 for i in range(len(benchmark.columns)):
                     ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), \
                             c=colors_list[i], label=benchmark.columns[i])
