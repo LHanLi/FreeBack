@@ -231,7 +231,7 @@ class ReturnsPost():
             round(100*self.return_annual,2), round(self.sharpe,2), 
             round(100*max(self.drawdown),2)), transform=ax.transAxes)
         # 净值与基准
-            ax.plot(self.net, c='C0', label=self.stratname)
+            ax.plot(self.net, c='C0', linewidth=2, label=self.stratname)
             # 如果基准是0就不绘制了
             if not (self.benchmark==0).all().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
@@ -240,10 +240,10 @@ class ReturnsPost():
                 # colors of benchmark
                 colors_list = ['C4','C5','C6','C7', 'C8', 'C9']*10
                 for i in range(len(benchmark.columns)):
-                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), \
+                    ax.plot((benchmark[benchmark.columns[i]]+1).cumprod(), alpha=0.8,\
                             c=colors_list[i], label=benchmark.columns[i])
                 if excess:
-                    ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
+                    ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', linewidth=1.5, label='超额收益')
                 plt.legend(loc='upper left')
             if log:
                 # 对数坐标显示
