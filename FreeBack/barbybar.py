@@ -51,8 +51,8 @@ class World():
 # 交易证券类型 字典 code映射到'convertibe'、'stock'等
 # 初始持仓和现金， index是代码，包括cash， value是张数（现金则是金额）
     def __init__(self, market,  type_dic = {'all_code': 'other'}, 
-                unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1},\
-                comm_dic = {'other':0, 'option':2/1e4, 'stock':5/1e4, 'convertible':0.5/1e4},
+                unit_dic = {'other':1e-10, 'stock':100, 'convertible':10, 'int_vol':1, 'stock_option':10000},\
+                comm_dic = {'other':0, 'stock':5/1e4, 'convertible':0.5/1e4, 'stock_option':2/1e4},
               init_cash = 1000000, max_vol_perbar=1e10, init_stat=None, short=False):
         self.temp_log = ''
         self.error_log = ''
@@ -594,7 +594,7 @@ class World():
                 cur_cash_ = self.cur_cash - vol*price
                 final_vol = self.df_hold.iloc[-1][order.code] + vol
                 final_amount = final_vol * self.cur_market.loc[order.code]['close']
-                if code_type == 'option':
+                if code_type.split('_')[-1] == 'option':
                     comm_cost = abs(vol)*code_comm
                 else:
                     comm_cost = abs(vol*price)*code_comm
