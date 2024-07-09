@@ -53,7 +53,7 @@ def Gauss(factor, p=0.003, slice=False):
         continuous = p/2+(1-p)*(rank-1)/(rank.groupby('date').max()-1)
         def func(ser):
             return ser.map(lambda x: stats.norm.ppf(x))
-        result = my_pd.parallel(continuous, func)
+        result = FB.my_pd.parallel(continuous, func)
         # 如果所有值相同则替换为0
         if_same = result.groupby('date').apply(lambda x: (~x.duplicated()).sum())
         result.loc[if_same[if_same==1].index] = 0
@@ -738,7 +738,7 @@ class Reg():
         self.cross_dict = cross_dict
         self.gamma_dict = gamma_dict
         self.result = result
-        display(result)
+        FB.display(result)
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = FB.display.matplot()
