@@ -74,12 +74,13 @@ def resample_fill(factor, freq='month'):
     df = df.groupby('code').fillna(method='bfill')
     return df['after']
 # 直接只选用原数据的周初、月初值
-# 没有周一和1号的月份用下一个第一个出现的值***
 def resample_select(market, freq='month'):
     if freq=='month':
-        return market.loc[market.index.map(lambda x:getattr(x[0], 'day'))==1]
+        # 前一天月份和今天不同，后一天月份和今天相同
+        market['th'] = market.index.get_level_values(0).map(lambda x: x.month)
     elif freq=='week':
-        return market.loc[market.index.map(lambda x:getattr(x[0], 'weekday')())==0]
+        market['th'] = market.index.get_level_values(0).map(lambda x: x.week)
+    return market[(market['th'].groupby('code').shift()!=market['th'])&(market['th'].groupby('code').shift(-1)==market['th'])].drop(columns='th')
 def QQ(factor, date=None):
     plt, fig, ax = FB.display.matplot(w=6, d=4)
     if date==None:
