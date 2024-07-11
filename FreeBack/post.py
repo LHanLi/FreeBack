@@ -236,7 +236,7 @@ class ReturnsPost():
             if not (self.benchmark==0).all().values[0]:
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
-                benchmark.loc[self.net.index[0]] = 0
+                #benchmark.loc[self.net.index[0]] = 0
                 # colors of benchmark
                 colors_list = ['C4','C5','C6','C7', 'C8', 'C9']*10
                 for i in range(len(benchmark.columns)):
