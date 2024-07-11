@@ -18,7 +18,7 @@ class Result():
         self.store[method] = self.smallResult(df)
 class Opt():
     # 待优化组合, index:(date,code) values: 简单收益率序列
-    def __init__(self, ser, interval=20, window=60):
+    def __init__(self, ser, interval=20, window=250):
         self.ser = ser
         self.interval = interval
         self.window = window
