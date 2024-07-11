@@ -80,7 +80,9 @@ def resample_select(market, freq='month'):
         market['th'] = market.index.get_level_values(0).map(lambda x: x.month)
     elif freq=='week':
         market['th'] = market.index.get_level_values(0).map(lambda x: x.week)
-    return market[(market['th'].groupby('code').shift()!=market['th'])&(market['th'].groupby('code').shift(-1)==market['th'])].drop(columns='th')
+    return market[(~market['th'].groupby('code').shift().isna())&\
+                  (market['th'].groupby('code').shift()!=market['th'])&\
+                  (market['th'].groupby('code').shift(-1)==market['th'])].drop(columns='th')
 def QQ(factor, date=None):
     plt, fig, ax = FB.display.matplot(w=6, d=4)
     if date==None:
