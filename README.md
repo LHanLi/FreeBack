@@ -2,7 +2,7 @@ backtest，stock, option, future，factor investing, portfiolio analyis
 
 # -----------------------Module------------------------
 
-**strat**： 择股和择时策略的快速回测框架
+**strat**： 基于并行的择股和择时策略的回测
 
 **barbybar**：逐k线，逐笔成交的事件驱动回测
 
