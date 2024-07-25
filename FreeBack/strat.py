@@ -1,6 +1,7 @@
 import FreeBack as FB
 import numpy as np
 import pandas as pd
+import time
 
 
 
@@ -82,8 +83,11 @@ class MetaStrat():
         return df
     # 运行策略
     def run(self):
+        time0 = time.time()
         self.get_hold()
         df_hold = self.get_interval(self.df_hold)
+        print('获取持仓表耗时', time.time()-time0)
+        time0 = time.time()
         # 去掉一直持仓为0的品种
         always_not_hold = (df_hold==0).all()
         self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
@@ -106,6 +110,8 @@ class MetaStrat():
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)
         self.net = (self.returns+1).cumprod()
+        print('获取净值耗时', time.time()-time0)
+        time0 = time.time()
         # 为了准确计算换手率，需要获得真实持仓市值与持仓张数(净值需要interval)
         net = self.get_interval(self.net)
         self.df_amount = self.df_amount.mul(list(net.values), axis=0)
@@ -118,6 +124,8 @@ class MetaStrat():
         if 'cash' in self.df_hold.columns:
             self.df_turnover['cash'] = 0
         self.turnover = self.df_turnover.sum(axis=1)
+        print('获取换手率耗时', time.time()-time0)
+        time0 = time.time()
 
 
 
