@@ -127,14 +127,15 @@ class Portfolio():
 ## comm 不影响结果，仅仅在result中给出多头费后年化收益率 
     def __init__(self, factor, price, norm=True, divide=(0, 0.2, 0.4, 0.6, 0.8, 1),\
                  justdivide=False, periods=(1, ), \
-                  holdweight=None, comm=0):
+                  holdweight=None, comm=0, returns=None):
         self.comm = comm
         self.norm = norm
         self.justdivide=justdivide
         # 一个确定持有张数（不去除停牌），一个确定收益率(去除停牌)
         self.price = pd.DataFrame(price.rename('price')).pivot_table('price', 'date' ,'code')
         # 每日收益率(当日收盘相比上日收盘)
-        returns = self.price/self.price.shift() - 1
+        if returns is None:
+            returns = self.price/self.price.shift() - 1
         self.returns = returns.fillna(0)
 #        # 先按照截面排序归一化
         if norm:
