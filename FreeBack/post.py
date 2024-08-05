@@ -438,6 +438,7 @@ class StratPost(ReturnsPost):
         self.turnover = strat0.turnover
         self.df_turnover = strat0.df_turnover 
         self.df_weight = strat0.df_weight
+        self.keeppool_rank = strat0.keeppool_rank  
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
                                 benchmark, stratname, freq, rf, fast)
@@ -470,7 +471,8 @@ class StratPost(ReturnsPost):
                     rename(columns={0:'weight'})
         # 持仓标的收益贡献
         held = held.join(pd.DataFrame(self.df_contri.shift(-1).stack()).\
-                         rename(columns={0:'contri'})).fillna(0)
+                         rename(columns={0:'contri'})).fillna(0).\
+                            loc[self.keeppool_rank.index]
         # 是否加入持仓品种名称
         try:
             if 'name' in self.market.columns:
