@@ -60,6 +60,9 @@ class MetaStrat():
                                         groupby('date').rank(\
                                             ascending=False, pct=(self.hold_num<1), method='first')
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
+            self.keeppool_rank = self.keeppool_rank.sort_values().groupby('date').head(3).\
+                reset_index().sort_values(by=['date', self.score]).\
+                    set_index(['date', 'code'])[self.score]
             # 检查有无空仓情形，如果有的话就添加现金
             lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
