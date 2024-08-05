@@ -60,7 +60,7 @@ class MetaStrat():
                                         groupby('date').rank(\
                                             ascending=False, pct=(self.hold_num<1), method='first')
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
-            self.keeppool_rank = self.keeppool_rank.sort_values().groupby('date').head(3).\
+            self.keeppool_rank = keeppool_rank.sort_values().groupby('date').head(3).\
                 reset_index().sort_values(by=['date', self.score]).\
                     set_index(['date', 'code'])[self.score]
             # 检查有无空仓情形，如果有的话就添加现金
@@ -169,6 +169,7 @@ class ComboStrat(MetaStrat):
         # 子策略模块
         # stati对应strati对应df_holdi
         df_holds = []
+        keeppool_rank = []
         for i in range(len(self.strats)):
             strati = self.strats[i]
             strati.market = self.market.loc[stat_days[i]]
@@ -178,6 +179,8 @@ class ComboStrat(MetaStrat):
                 continue
             strati.get_hold()
             df_holds.append(strati.df_hold)
+            keeppool_rank.append(strati.keeppool_rank)
+        self.keeppool_rank = pd.concat(keeppool_rank)
         self.df_hold = pd.concat(df_holds).sort_values(by='date').fillna(0)
 
 
