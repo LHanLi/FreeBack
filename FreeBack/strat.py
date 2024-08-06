@@ -60,11 +60,12 @@ class MetaStrat():
                                     (self.inexclude)[self.score].\
                                         groupby('date').rank(\
                                             ascending=False, pct=(self.hold_num<1), method='first')
-            df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
-            self.keeppool_rank = pd.Series(index=keeppool_rank.sort_values().groupby('date').\
-                                           head(self.hold_num).reset_index().\
-                                            sort_values(by=['date', self.score]).\
-                                                set_index(['date', 'code']).index)
+            self.keeppool_rank = keeppool_rank[keeppool_rank<=self.hold_num]
+            df_hold = self.market.loc[self.keeppool_rank.index].copy()
+            #self.keeppool_rank = pd.Series(index=keeppool_rank.sort_values().groupby('date').\
+            #                               head(self.hold_num).reset_index().\
+            #                                sort_values(by=['date', self.score]).\
+            #                                    set_index(['date', 'code']).index)
             # 检查有无空仓情形，如果有的话就添加现金
             lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
@@ -182,7 +183,8 @@ class ComboStrat(MetaStrat):
             strati.get_hold()
             df_holds.append(strati.df_hold)
             keeppool_rank.append(strati.keeppool_rank)
-        self.keeppool_rank = pd.concat(keeppool_rank)
+        self.keeppool_rank = pd.concat(keeppool_rank).reset_index().\
+            sort_values(by=['date', 0]).set_index(['date', 'code'])[0]
         self.df_hold = pd.concat(df_holds).sort_values(by='date').fillna(0)
 
 
