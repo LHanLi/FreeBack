@@ -51,6 +51,7 @@ class MetaStrat():
             if 'cash' in (self.inexclude):
                 self.add_cash()
             df_hold = self.market.loc[:, self.inexclude, :]
+            self.keeppool_rank = pd.Series(index=df_hold.index)
         # 按排除、排序规则持股，避免持有退市前最后一天股票
         else:
             keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x) \
@@ -60,9 +61,10 @@ class MetaStrat():
                                         groupby('date').rank(\
                                             ascending=False, pct=(self.hold_num<1), method='first')
             df_hold = self.market.loc[keeppool_rank[keeppool_rank<=self.hold_num].index].copy()
-            self.keeppool_rank = keeppool_rank.sort_values().groupby('date').head(3).\
-                reset_index().sort_values(by=['date', self.score]).\
-                    set_index(['date', 'code'])[self.score]
+            self.keeppool_rank = pd.Series(index=keeppool_rank.sort_values().groupby('date').\
+                                           head(self.hold_num).reset_index().\
+                                            sort_values(by=['date', self.score]).\
+                                                set_index(['date', 'code']).index)
             # 检查有无空仓情形，如果有的话就添加现金
             lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
