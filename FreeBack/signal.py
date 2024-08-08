@@ -10,7 +10,6 @@ from FreeBack.display import matplot
 from FreeBack.post import ReturnsPost
 from FreeBack.my_pd import parallel_group
 
-
 '''
 信号生成模块->根据因子生成信号
 输入: market.index: date code;  columns:open, low, high, close
@@ -229,7 +228,170 @@ class SignalPost():
 
 
 
+import FreeBack as FB
+from plottable import ColumnDefinition, ColDef, Table
 
+
+# SAR跟踪止损离场
+# SAR参数
+initAF = deltaAF = 0.005
+maxAF = 0.05
+class Trail():
+    def __init__(self, after_market, direct):
+        self.after_market = after_market
+        self.direct = direct
+    # 初始化，在第一根bar上运行
+    def init(self):
+        # 运行中全部记录指标
+        self.indicators = ['SAR']
+        self.care =  (lambda x: 'high' if x else 'low')(self.direct==1)
+        self.edge = self.after_market.iloc[0][self.care]
+        # 比如做多的话选取最小值作为初始止损位
+        self.SAR = self.after_market.iloc[0][(lambda x: 'low' if x else 'high')(self.direct==1)]
+        self.AF = initAF
+        self.after_market.loc[self.after_market.index[0], 'SAR'] = self.SAR
+    # 沿着date顺序检查,输入为after_market的逐行index和value 
+    def check(self, i, v):
+        if self.direct*(v[self.care]-self.edge)>0:
+            self.edge = v[self.care]
+            self.AF = min(self.AF+deltaAF, maxAF)
+        self.SAR = self.SAR+self.AF*(self.edge-self.SAR)
+        self.after_market.loc[i, 'SAR'] = self.SAR
+        # 价格低于（做多）SAR离场
+        ifleave = self.direct*(self.after_market.loc[i, 'close']-self.SAR)<0
+        return ifleave
+
+class Signal():
+    # 开仓信号坐标，开仓方向
+    def __init__(self, market, oloc, direct):
+        self.oloc = oloc
+        self.direct = direct
+    # 信号分析
+    def analysis(self):
+        self.mean_return = self.result['returns'].mean()
+        self.mean_dur = self.result['dur'].mean()
+        self.maxdraw = self.result['maxd'].max()
+        self.winrate = (self.result['returns']>0).mean()
+        self.mean_win = self.result[self.result['returns']>0]['returns'].mean()
+        self.mean_loss = self.result[self.result['returns']<0]['returns'].mean()
+        self.odds = -self.mean_win/self.mean_loss
+        self.potential_odds = (self.result['maxr']/self.result['maxd']).mean()
+
+        col0 = pd.DataFrame(columns=['col0'])
+        col0.loc[0] = '信号次数' 
+        col0.loc[1] = len(self.oloc)
+        col0.loc[2] = '开仓次数' 
+        col0.loc[3] = len(self.result)
+        col0.loc[4] = '平均持有时长' 
+        col0.loc[5] = self.result['dur'].mean().round(1)
+        col1 = pd.DataFrame(columns=['col1'])
+        col1.loc[0] = '平均收益（万）'  
+        col1.loc[1] = self.result['returns'].mean().round(1)
+        col1.loc[2] = '最大收益（万）'
+        col1.loc[3] = self.result['returns'].max().round(1)
+        col1.loc[4] = '最大潜在收益（万）'
+        col1.loc[5] = self.result['maxr'].max().round(1)
+        col2 = pd.DataFrame(columns=['col2'])
+        col3 = pd.DataFrame(columns=['col3'])
+        col4 = pd.DataFrame(columns=['col4'])
+        col5 = pd.DataFrame(columns=['col5'])
+        col6 = pd.DataFrame(columns=['col6'])
+        col7 = pd.DataFrame(columns=['col7'])
+        df_details = pd.concat([col0, col1, col2, col3, \
+                col4, col5, col6, col7], axis=1).fillna('')
+        self.df_details = df_details
+        plt, fig, ax = FB.display.matplot(w=22)
+        column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
+                              ColumnDefinition(name='col1', group="收益能力"), \
+                            ColumnDefinition(name='col2', group='收益能力'), \
+                            ColumnDefinition(name='col3', group='风险水平'), \
+                            ColumnDefinition(name="col4", group='风险调整'), \
+                            ColumnDefinition(name="col5", group='风险调整'), \
+                            ColumnDefinition(name="col6", group='策略执行'),
+                            ColumnDefinition(name="col7", group='业绩持续性分析')] + \
+                             [ColDef("index", title="", width=0, textprops={"ha":"right"})]
+        tab = Table(self.df_details, row_dividers=False, col_label_divider=False, 
+                    column_definitions=column_definitions,
+                    odd_row_color="#e0f6ff", even_row_color="#f0f0f0", 
+                    textprops={"ha": "center"})
+        #ax.set_xlim(2,5)
+        # 设置列标题文字和背景颜色(隐藏表头名)
+        tab.col_label_row.set_facecolor("white")
+        tab.col_label_row.set_fontcolor("white")
+        # 设置行标题文字和背景颜色
+        tab.columns["index"].set_facecolor("white")
+        tab.columns["index"].set_fontcolor("white")
+        tab.columns["index"].set_linewidth(0)
+        FB.post.check_output()
+        plt.savefig('./output/details.png')
+        plt.show()
+    # 从开仓信号得到信号强度(result)、持仓状态(result_hold)和跟踪指标(result_after)
+    def run(self, comm=0):
+        result = pd.DataFrame(index=self.oloc)
+        result_hold = pd.DataFrame()
+        result_after = {}
+        for start in self.oloc:
+            #print('从', start, '开始')
+            if start in result_hold.index:
+                #print('开仓信号', start, '在持有状态，忽略。')
+                continue
+            # 信号触发后的market
+            after_market = self.market.loc[start[0]:, start[1], :]
+            # 框架
+            high =  after_market.iloc[0]['high']
+            low = after_market.iloc[0]['low']
+            trail0 = Trail(after_market, self.direct)
+            trail0.init()
+            this_hold = [after_market.index[0]]
+            for i,v in after_market.iterrows():
+                # 忽略第一根bar
+                if i==after_market.index[0]:
+                    continue
+                high = max(after_market.loc[i, 'high'], high)
+                low = min(after_market.loc[i, 'low'], low)
+                # 离场信号发出的下一根bar离场
+                this_hold.append(i)
+                if trail0.check(i, v):
+                    break
+            this_hold = pd.DataFrame(index=this_hold)
+            returns = self.direct*(1e4*after_market.loc[i, 'close']\
+                                   /after_market.iloc[0]['close']-1e4)
+            returns = returns-2*comm
+            dur = len(this_hold)
+            maxr = 1e4*high/after_market.iloc[0]['close']-1e4
+            maxd = 1e4-1e4*low/after_market.iloc[0]['close']
+            if self.direct==-1:
+                maxr,maxd = maxd, maxr
+            maxr = maxr-comm
+            maxd = maxd+comm
+            result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = [returns, dur, maxr, maxd]
+            result_hold = pd.concat([result_hold, this_hold])
+            result_after[start] = after_market
+        self.result = result.dropna()
+        self.result_hold = result_hold
+        self.result_after = result_after
+    # 观察单标的择时情况，code可以输入代码或者整数当输入整数时展示单次最大收益的代码，\
+    # indicators after_market中指标
+    def lookcode(self, code=0, indicators=[]):
+        if type(code)==type(0):
+            code = self.result.sort_values(by='returns', \
+                                ascending=False).index.get_level_values(1).unique()[code]
+        plt, fig, ax = FB.display.matplot()
+        # 跟踪价格，收盘价
+        l0, = ax.plot(self.market.loc[:, code, :]['close'])
+        # 开仓信号
+        ax.scatter(pd.DataFrame(index=self.oloc).loc[:, code, :].index, \
+                self.market.loc[:, code, :]['close'].loc[\
+                    pd.DataFrame(index=self.oloc).loc[:, code, :].index],\
+                      c='C3', s=10, marker='*', alpha=1)
+        lines = []
+        for date in self.result.loc[:, code, :].index:
+            ax.vlines(date, self.market.loc[:, code, :]['close'].min(),\
+                       self.market.loc[:, code, :]['close'].max(), colors='C6', linestyle='--')
+            for indicator in indicators:
+                l, = ax.plot(self.result_after[(date, code)].loc[:, code, :][indicator], c='C1')
+                lines.append(l)
+        plt.legend([l0]+lines, ['收盘价']+indicators)
 
 
 
