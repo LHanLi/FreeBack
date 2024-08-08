@@ -10,6 +10,7 @@ from FreeBack.display import matplot
 from FreeBack.post import ReturnsPost
 from FreeBack.my_pd import parallel_group
 
+
 '''
 信号生成模块->根据因子生成信号
 输入: market.index: date code;  columns:open, low, high, close
@@ -218,4 +219,27 @@ class SignalPost():
         sr_compose = sr_df.loc[self.turnover.index].sum(axis=1)
 
         ReturnsPost(returns=sr_compose).pnl()
+
+
+"""
+根据开仓信号和平仓类，分析开仓信号的优劣、得到持仓状态、展示择时效果。
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
