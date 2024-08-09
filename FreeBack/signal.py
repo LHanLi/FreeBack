@@ -287,12 +287,12 @@ class Signal():
         col0.loc[5] = self.result['dur'].mean().round(1)
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '空仓时间占比(%)'
-        col1.loc[1] = 100*len(self.result_hold.index.get_level_values(0).unique())/\
-                        len(self.market.index.get_level_values(0).unique())
-        col1.loc[0] = '最大重叠信号数' 
-        col1.loc[1] = self.result_hold.reset_index().groupby('date').count().max()
-        col1.loc[2] = '平均重叠信号数' 
-        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().mean()
+        col1.loc[1] = round(100*len(self.result_hold.index.get_level_values(0).unique())/\
+                        len(self.market.index.get_level_values(0).unique()), 1)
+        col1.loc[2] = '最大重叠信号数' 
+        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().max()
+        col1.loc[4] = '平均重叠信号数' 
+        col1.loc[5] = self.result_hold.reset_index().groupby('date').count().mean().round(1)
         col2 = pd.DataFrame(columns=['col2'])
         col2.loc[0] = '平均收益（万）'  
         col2.loc[1] = self.result['returns'].mean().round(1)
