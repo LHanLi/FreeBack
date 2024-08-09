@@ -264,6 +264,7 @@ class Trail():
 class Signal():
     # 开仓信号坐标，开仓方向
     def __init__(self, market, oloc, direct):
+        self.market = market
         self.oloc = oloc
         self.direct = direct
     # 信号分析
@@ -285,13 +286,20 @@ class Signal():
         col0.loc[4] = '平均持有时长' 
         col0.loc[5] = self.result['dur'].mean().round(1)
         col1 = pd.DataFrame(columns=['col1'])
-        col1.loc[0] = '平均收益（万）'  
-        col1.loc[1] = self.result['returns'].mean().round(1)
-        col1.loc[2] = '最大收益（万）'
-        col1.loc[3] = self.result['returns'].max().round(1)
-        col1.loc[4] = '最大潜在收益（万）'
-        col1.loc[5] = self.result['maxr'].max().round(1)
+        col1.loc[0] = '空仓时间占比(%)'
+        col1.loc[1] = 100*len(self.result_hold.index.get_level_values(0).unique())/\
+                        len(self.market.index.get_level_values(0).unique())
+        col1.loc[0] = '最大重叠信号数' 
+        col1.loc[1] = self.result_hold.reset_index().groupby('date').count().max()
+        col1.loc[2] = '平均重叠信号数' 
+        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().mean()
         col2 = pd.DataFrame(columns=['col2'])
+        col2.loc[0] = '平均收益（万）'  
+        col2.loc[1] = self.result['returns'].mean().round(1)
+        col2.loc[2] = '最大收益（万）'
+        col2.loc[3] = self.result['returns'].max().round(1)
+        col2.loc[4] = '最大潜在收益（万）'
+        col2.loc[5] = self.result['maxr'].max().round(1)
         col3 = pd.DataFrame(columns=['col3'])
         col4 = pd.DataFrame(columns=['col4'])
         col5 = pd.DataFrame(columns=['col5'])
@@ -302,7 +310,7 @@ class Signal():
         self.df_details = df_details
         plt, fig, ax = FB.display.matplot(w=22)
         column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
-                              ColumnDefinition(name='col1', group="收益能力"), \
+                              ColumnDefinition(name='col1', group="基本参数"), \
                             ColumnDefinition(name='col2', group='收益能力'), \
                             ColumnDefinition(name='col3', group='风险水平'), \
                             ColumnDefinition(name="col4", group='风险调整'), \
@@ -353,7 +361,7 @@ class Signal():
                 this_hold.append(i)
                 if trail0.check(i, v):
                     break
-            this_hold = pd.DataFrame(index=this_hold)
+            this_hold = pd.DataFrame(index=after_market.loc[:i].index)
             returns = self.direct*(1e4*after_market.loc[i, 'close']\
                                    /after_market.iloc[0]['close']-1e4)
             returns = returns-2*comm
