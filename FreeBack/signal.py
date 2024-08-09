@@ -243,7 +243,6 @@ class Trail():
     # 初始化，在第一根bar上运行
     def init(self):
         # 运行中全部记录指标
-        self.indicators = ['SAR']
         self.care =  (lambda x: 'high' if x else 'low')(self.direct==1)
         self.edge = self.after_market.iloc[0][self.care]
         # 比如做多的话选取最小值作为初始止损位
@@ -287,12 +286,13 @@ class Signal():
         col0.loc[5] = self.result['dur'].mean().round(1)
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '空仓时间占比(%)'
-        col1.loc[1] = round(100*len(self.result_hold.index.get_level_values(0).unique())/\
+        col1.loc[1] = round(100-100*len(self.result_hold.index.get_level_values(0).unique())/\
                         len(self.market.index.get_level_values(0).unique()), 1)
         col1.loc[2] = '最大重叠信号数' 
-        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().max()
+        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().max().values[0]
         col1.loc[4] = '平均重叠信号数' 
-        col1.loc[5] = self.result_hold.reset_index().groupby('date').count().mean().round(1)
+        col1.loc[5] = self.result_hold.reset_index().groupby('date').count().mean()\
+            .round(1).values[0]
         col2 = pd.DataFrame(columns=['col2'])
         col2.loc[0] = '平均收益（万）'  
         col2.loc[1] = self.result['returns'].mean().round(1)
@@ -301,6 +301,8 @@ class Signal():
         col2.loc[4] = '最大潜在收益（万）'
         col2.loc[5] = self.result['maxr'].max().round(1)
         col3 = pd.DataFrame(columns=['col3'])
+        col3.loc[0] = '平均最大回撤（万）'
+        col3.loc[1] = self.result['maxd'].mean().round(1)
         col4 = pd.DataFrame(columns=['col4'])
         col5 = pd.DataFrame(columns=['col5'])
         col6 = pd.DataFrame(columns=['col6'])
