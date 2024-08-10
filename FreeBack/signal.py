@@ -224,48 +224,18 @@ class SignalPost():
 根据开仓信号和平仓类，分析开仓信号的优劣、得到持仓状态、展示择时效果。
 """
 
-
-
-
-
 import FreeBack as FB
 from plottable import ColumnDefinition, ColDef, Table
 
-
-# SAR跟踪止损离场
-# SAR参数
-initAF = deltaAF = 0.005
-maxAF = 0.05
-class Trail():
-    def __init__(self, after_market, direct):
-        self.after_market = after_market
-        self.direct = direct
-    # 初始化，在第一根bar上运行
-    def init(self):
-        # 运行中全部记录指标
-        self.care =  (lambda x: 'high' if x else 'low')(self.direct==1)
-        self.edge = self.after_market.iloc[0][self.care]
-        # 比如做多的话选取最小值作为初始止损位
-        self.SAR = self.after_market.iloc[0][(lambda x: 'low' if x else 'high')(self.direct==1)]
-        self.AF = initAF
-        self.after_market.loc[self.after_market.index[0], 'SAR'] = self.SAR
-    # 沿着date顺序检查,输入为after_market的逐行index和value 
-    def check(self, i, v):
-        if self.direct*(v[self.care]-self.edge)>0:
-            self.edge = v[self.care]
-            self.AF = min(self.AF+deltaAF, maxAF)
-        self.SAR = self.SAR+self.AF*(self.edge-self.SAR)
-        self.after_market.loc[i, 'SAR'] = self.SAR
-        # 价格低于（做多）SAR离场
-        ifleave = self.direct*(self.after_market.loc[i, 'close']-self.SAR)<0
-        return ifleave
-
 class Signal():
     # 开仓信号坐标，开仓方向
-    def __init__(self, market, oloc, direct):
+    def __init__(self, market, oloc, trail, direct=1):
         self.market = market
         self.oloc = oloc
+        self.trail = trail
         self.direct = direct
+    class trail():
+        pass
     # 信号分析
     def analysis(self):
         self.mean_return = self.result['returns'].mean()
@@ -347,35 +317,9 @@ class Signal():
                 continue
             # 信号触发后的market
             after_market = self.market.loc[start[0]:, start[1], :]
-            # 框架
-            high =  after_market.iloc[0]['high']
-            low = after_market.iloc[0]['low']
-            trail0 = Trail(after_market, self.direct)
-            trail0.init()
-            this_hold = [after_market.index[0]]
-            for i,v in after_market.iterrows():
-                # 忽略第一根bar
-                if i==after_market.index[0]:
-                    continue
-                high = max(after_market.loc[i, 'high'], high)
-                low = min(after_market.loc[i, 'low'], low)
-                # 离场信号发出的下一根bar离场
-                this_hold.append(i)
-                if trail0.check(i, v):
-                    break
-            this_hold = pd.DataFrame(index=after_market.loc[:i].index)
-            returns = self.direct*(1e4*after_market.loc[i, 'close']\
-                                   /after_market.iloc[0]['close']-1e4)
-            returns = returns-2*comm
-            dur = len(this_hold)
-            maxr = 1e4*high/after_market.iloc[0]['close']-1e4
-            maxd = 1e4-1e4*low/after_market.iloc[0]['close']
-            if self.direct==-1:
-                maxr,maxd = maxd, maxr
-            maxr = maxr-comm
-            maxd = maxd+comm
-            result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = [returns, dur, maxr, maxd]
-            result_hold = pd.concat([result_hold, this_hold])
+            after_market, r = self.trail(after_market, self.direct, comm).run()
+            result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = r
+            result_hold = pd.concat([result_hold, pd.DataFrame(index=after_market.index)])
             result_after[start] = after_market
         self.result = result.dropna()
         self.result_hold = result_hold
@@ -390,27 +334,129 @@ class Signal():
         # 跟踪价格，收盘价
         l0, = ax.plot(self.market.loc[:, code, :]['close'])
         # 开仓信号
-        ax.scatter(pd.DataFrame(index=self.oloc).loc[:, code, :].index, \
+        l1 = ax.scatter(pd.DataFrame(index=self.oloc).loc[:, code, :].index, \
                 self.market.loc[:, code, :]['close'].loc[\
                     pd.DataFrame(index=self.oloc).loc[:, code, :].index],\
                       c='C3', s=10, marker='*', alpha=1)
         lines = []
         for date in self.result.loc[:, code, :].index:
-            ax.vlines(date, self.market.loc[:, code, :]['close'].min(),\
-                       self.market.loc[:, code, :]['close'].max(), colors='C6', linestyle='--')
+            l2 = ax.vlines(date, self.market.loc[:, code, :]['close'].min(),\
+                       self.market.loc[:, code, :]['close'].max(), colors='C3', linestyle='--')
+            l3 = ax.vlines(self.result_after[(date, code)].loc[:, code, :].index[-1],\
+                             self.market.loc[:, code, :]['close'].min(),\
+                                self.market.loc[:, code, :]['close'].max(), colors='C2', linestyle='--')
             for indicator in indicators:
-                l, = ax.plot(self.result_after[(date, code)].loc[:, code, :][indicator], c='C1')
+                l, = ax.plot(self.result_after[(date, code)].loc[:, code, :][indicator])
                 lines.append(l)
-        plt.legend([l0]+lines, ['收盘价']+indicators)
+        plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
+        plt.title(code)
+
+# 跟踪类，
+# 输入: after_market multiindex 单一code
+# 输出：持仓坐标、带有指标的after_market、[收益，持有时间，最大收益，最大回撤]
+class Trail():
+    def __init__(self, after_market, direct=1, comm=0):
+        self.after_market = after_market
+        self.direct = direct
+        self.comm = comm
+        # 游标
+        self.indexrange = self.after_market.index
+        self.i = 0
+    # 获取after_market的指标
+    def get_index(self, shift=0):
+        if shift<0:
+            return self.indexrange[0]
+        try:
+            return self.indexrange[self.i-shift]
+        except:
+            print(self.i, shift)
+            print('最早取到0个日期')
+            return self.indexrange[0]
+    def get_ind(self, ind, shift=0):
+        return self.after_market.loc[self.get_index(shift), ind]
+    def set_ind(self, ind, value, shift=0):
+        self.after_market.loc[self.get_index(shift), ind] = value
+    def run(self):
+        self.set_ind('cum_high', self.get_ind('high'))
+        self.set_ind('cum_low', self.get_ind('low'))
+        self.init()
+        self.i += 1
+        while self.i<len(self.indexrange)-1:
+            self.set_ind('cum_high', max(self.get_ind('cum_high',1), self.get_ind('high')))
+            self.set_ind('cum_low', min(self.get_ind('cum_low', 1), self.get_ind('low')))
+            # 离场信号发出的下一根bar离场
+            if self.check():
+                break
+            self.i += 1
+        self.after_market = self.after_market.loc[:self.get_index()]
+        returns = self.direct*(1e4*self.get_ind('close')/self.get_ind('close', -1)-1e4)
+        returns = returns-2*self.comm
+        dur = len(self.after_market)
+        maxr = 1e4*self.get_ind('cum_high')/self.get_ind('close', -1)-1e4
+        maxd = 1e4-1e4*self.get_ind('cum_low')/self.get_ind('close', -1)
+        if self.direct==-1:
+            maxr,maxd = maxd, maxr
+        maxr = maxr-self.comm
+        maxd = maxd+self.comm
+        return self.after_market, [returns, dur, maxr, maxd]
+    # 初始化，在第一根bar上运行
+    def init(self):
+        pass
+    # 沿着date顺序检查,输入为after_market的逐行index和value 
+    def check(self):
+        pass
 
 
-
-
-
-
-
-
-
+# 几个内置跟踪类
+# SAR跟踪止损
+class  Trail_SAR(Trail):
+    # SAR参数
+    initAF = deltaAF = 0.005
+    maxAF = 0.05
+    def init(self):
+        # 运行中全部记录指标
+        self.care =  (lambda x: 'high' if x else 'low')(self.direct==1)
+        self.edge =  self.get_ind(self.care, -1)
+        # 比如做多的话选取最小值作为初始止损位
+        SAR = self.get_ind((lambda x: 'low' if x else 'high')(self.direct==1), -1)
+        self.AF = self.initAF
+        self.set_ind('SAR', SAR)
+    def check(self):
+        if self.direct*(self.get_ind(self.care)-self.edge)>0:
+            self.edge = self.get_ind(self.care)
+            self.AF = min(self.AF+self.deltaAF, self.maxAF)
+        self.set_ind('SAR', self.get_ind('SAR', 1)+self.AF*(self.edge-self.get_ind('SAR', 1)))
+        # 价格低于（做多）SAR离场
+        return self.direct*(self.get_ind('close')-self.get_ind('SAR'))<0
+# 持有固定时间
+class Trail_fixdur(Trail):
+    hold_dur = 10
+    def init(self):
+        # 运行中全部记录指标
+        self.set_ind('dur', 1)
+    def check(self):
+        self.set_ind('dur', 1+self.get_ind('dur', 1))
+        return (self.get_ind('dur')-1)==self.hold_dur
+# 固定止盈止损
+class Trail_stop(Trail):
+    stop_profit = 0.05
+    stop_loss = 0.01
+    def init(self):
+        self.set_ind('pnl', 0)
+    def check(self):
+        self.set_ind('pnl', self.get_ind('close')/self.get_ind('close', -1)-1)
+        return (self.get_ind('pnl')>self.stop_profit)|(self.get_ind('pnl')<-self.stop_loss)
+# 动态止盈止损
+class Trail_trailstop(Trail):
+    stop_profit = 0.05
+    stop_loss = 0.01
+    def init(self):
+        self.set_ind('trailloss', 0)
+        self.set_ind('trailprofit', 0)
+    def check(self):
+        self.set_ind('trailloss', 1-self.get_ind('close')/self.get_ind('cum_high'))
+        self.set_ind('trailprofit', self.get_ind('close')/self.get_ind('cum_low')-1)
+        return (self.get_ind('trailprofit')>self.stop_profit)|(self.get_ind('trailloss')>self.stop_loss)
 
 
 
