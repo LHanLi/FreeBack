@@ -4,7 +4,7 @@
 
 import pandas as pd
 import numpy as np
-import numba as nb
+#import numba as nb
 import matplotlib.pyplot as plt
 from FreeBack.display import matplot
 from FreeBack.post import ReturnsPost
