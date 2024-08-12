@@ -344,9 +344,11 @@ class Signal():
                        self.market.loc[:, code, :]['close'].max(), colors='C3', linestyle='--')
             l3 = ax.vlines(self.result_after[(date, code)].loc[:, code, :].index[-1],\
                              self.market.loc[:, code, :]['close'].min(),\
-                                self.market.loc[:, code, :]['close'].max(), colors='C2', linestyle='--')
+                                self.market.loc[:, code, :]['close'].max(), colors='C2',\
+                                      linestyle='--')
+            ax1 = ax.twinx()
             for indicator in indicators:
-                l, = ax.plot(self.result_after[(date, code)].loc[:, code, :][indicator])
+                l, = ax1.plot(self.result_after[(date, code)].loc[:, code, :][indicator])
                 lines.append(l)
         plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
         plt.title(code)
