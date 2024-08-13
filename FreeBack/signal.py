@@ -441,8 +441,8 @@ class Trail_fixdur(Trail):
         return (self.get_ind('dur')-1)==self.hold_dur
 # 固定止盈止损
 class Trail_stop(Trail):
-    stop_profit = 0.05
-    stop_loss = 0.01
+    stop_profit = 0.02
+    stop_loss = 0.02
     def init(self):
         self.set_ind('pnl', 0)
     def check(self):
