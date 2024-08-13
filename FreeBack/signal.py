@@ -234,8 +234,6 @@ class Signal():
         self.oloc = oloc
         self.trail = trail
         self.direct = direct
-    class trail():
-        pass
     # 信号分析
     def analysis(self):
         self.mean_return = self.result['returns'].mean()
@@ -321,7 +319,8 @@ class Signal():
             result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = r
             result_hold = pd.concat([result_hold, pd.DataFrame(index=after_market.index)])
             result_after[start] = after_market
-        self.result = result.dropna()
+        #self.result = result.dropna()
+        self.result = result
         self.result_hold = result_hold
         self.result_after = result_after
     # 观察单标的择时情况，code可以输入代码或者整数当输入整数时展示单次最大收益的代码，\
@@ -404,7 +403,7 @@ class Trail():
     # 初始化，在第一根bar上运行
     def init(self):
         pass
-    # 沿着date顺序检查,输入为after_market的逐行index和value 
+    # 沿着date顺序检查,输入为after_market的逐行index和value
     def check(self):
         pass
 
