@@ -316,7 +316,7 @@ class Signal():
             # 信号触发后的market
             after_market = self.market.loc[start[0]:, start[1], :]
             after_market, r = self.trail(after_market, self.direct, comm).run()
-            result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = r
+            result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd']] = r
             result_hold = pd.concat([result_hold, pd.DataFrame(index=after_market.index)])
             result_after[start] = after_market
         self.result = result.dropna()
@@ -399,7 +399,7 @@ class Trail():
             maxr,maxd = maxd, maxr
         maxr = maxr-self.comm
         maxd = maxd+self.comm
-        return self.after_market, [returns, dur, maxr, maxd]
+        return self.after_market, [self.get_ind()[0], returns, dur, maxr, maxd]
     # 初始化，在第一根bar上运行
     def init(self):
         pass
