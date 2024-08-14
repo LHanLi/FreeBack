@@ -242,14 +242,6 @@ class Signal():
         else:
             result = self.result
             result_hold = self.result_hold
-        self.mean_return = result['returns'].mean()
-        self.mean_dur = result['dur'].mean()
-        self.maxdraw = result['maxd'].max()
-        self.winrate = (result['returns']>0).mean()
-        self.mean_win = result[result['returns']>0]['returns'].mean()
-        self.mean_loss = result[result['returns']<0]['returns'].mean()
-        self.odds = -self.mean_win/self.mean_loss
-        self.potential_odds = (result['maxr']/result['maxd']).mean()
 
         col0 = pd.DataFrame(columns=['col0'])
         col0.loc[0] = '开仓次数'
@@ -273,19 +265,19 @@ class Signal():
         col2.loc[2] = '总收益（万）'
         col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e4-1e4, 1)
         col2.loc[4] = '正平均收益（万）'
-        pmean = (self.result['returns']>0).mean()
+        pmean = round((1e4*result['returns']>0).mean(), 1)
         col2.loc[5] = pmean
         col3 = pd.DataFrame(columns=['col3'])
         col3.loc[0] = '负平均收益（万）'
-        nmean = (self.result['returns']<0).mean()
+        nmean = round((1e4*result['returns']<0).mean(), 1)
         col3.loc[1] = nmean
         col3.loc[2] = '平均最大回撤（万）'
         col3.loc[3] = result['maxd'].mean().round(1)
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = '胜率（%）'
-        col4.loc[1] = round(100*(self.result['returns']>0).mean(), 1)
+        col4.loc[1] = round(100*(result['returns']>0).mean(), 1)
         col4.loc[2] = '赔率'
-        col4.loc[3] = pmean/nmean
+        col4.loc[3] = round(pmean/nmean, 1)
         col5 = pd.DataFrame(columns=['col5'])
         col6 = pd.DataFrame(columns=['col6'])
         col7 = pd.DataFrame(columns=['col7'])
@@ -476,5 +468,18 @@ class Trail_trailstop(Trail):
         self.set_ind('trailloss', 1-self.get_ind('close')/self.get_ind('cum_high'))
         self.set_ind('trailprofit', self.get_ind('close')/self.get_ind('cum_low')-1)
         return (self.get_ind('trailprofit')>self.stop_profit)|(self.get_ind('trailloss')>self.stop_loss)
+# 止盈止损+最大持有时间
+class Trail_stopdur(Trail):
+    hold_dur = 100
+    stop_profit = 0.02
+    stop_loss = 0.02
+    def init(self):
+        self.set_ind('pnl', 0)
+        self.set_ind('dur', 1)
+    def check(self):
+        self.set_ind('dur', 1+self.get_ind('dur', 1))
+        self.set_ind('pnl', self.get_ind('close')/self.get_ind('close', -1)-1)
+        return (self.get_ind('pnl')>self.stop_profit)|(self.get_ind('pnl')<-self.stop_loss)|\
+                    ((self.get_ind('dur')-1)==self.hold_dur)
 
 
