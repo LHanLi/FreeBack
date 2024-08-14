@@ -319,8 +319,7 @@ class Signal():
             result.loc[start, ['returns', 'dur', 'maxr', 'maxd']] = r
             result_hold = pd.concat([result_hold, pd.DataFrame(index=after_market.index)])
             result_after[start] = after_market
-        #self.result = result.dropna()
-        self.result = result
+        self.result = result.dropna()
         self.result_hold = result_hold
         self.result_after = result_after
     # 观察单标的择时情况，code可以输入代码或者整数当输入整数时展示单次最大收益的代码，\
@@ -382,13 +381,14 @@ class Trail():
         self.set_ind('cum_low', self.get_ind('low'))
         self.init()
         self.i += 1
-        while self.i<len(self.indexrange)-1:
+        while self.i<len(self.indexrange):
             self.set_ind('cum_high', max(self.get_ind('cum_high',1), self.get_ind('high')))
             self.set_ind('cum_low', min(self.get_ind('cum_low', 1), self.get_ind('low')))
             # 离场信号发出的下一根bar离场
             if self.check():
                 break
             self.i += 1
+        self.i -= 1
         self.after_market = self.after_market.loc[:self.get_index()]
         returns = self.direct*(1e4*self.get_ind('close')/self.get_ind('close', -1)-1e4)
         returns = returns-2*self.comm
