@@ -238,7 +238,7 @@ class Signal():
     def analysis(self, end_by_trail=False):
         if end_by_trail:
             result = self.result[self.result['end']!=self.market.index[-1][0]]
-            result_hold = pd.concat([self.result_after[i] for i in result.index])
+            result_hold = pd.concat([self.result_after[i]['stepr'] for i in result.index])
         else:
             result = self.result
             result_hold = self.result_hold
@@ -272,12 +272,20 @@ class Signal():
         col2.loc[1] = result['returns'].mean().round(1)
         col2.loc[2] = '总收益（万）'
         col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e4-1e4, 1)
-        col2.loc[4] = '最大潜在收益（万）'
-        col2.loc[5] = result['maxr'].max().round(1)
+        col2.loc[4] = '正平均收益（万）'
+        pmean = (self.result['returns']>0).mean()
+        col2.loc[5] = pmean
         col3 = pd.DataFrame(columns=['col3'])
-        col3.loc[0] = '平均最大回撤（万）'
-        col3.loc[1] = result['maxd'].mean().round(1)
+        col3.loc[0] = '负平均收益（万）'
+        nmean = (self.result['returns']<0).mean()
+        col3.loc[1] = nmean
+        col3.loc[2] = '平均最大回撤（万）'
+        col3.loc[3] = result['maxd'].mean().round(1)
         col4 = pd.DataFrame(columns=['col4'])
+        col4.loc[0] = '胜率（%）'
+        col4.loc[1] = round(100*(self.result['returns']>0).mean(), 1)
+        col4.loc[2] = '赔率'
+        col4.loc[3] = pmean/nmean
         col5 = pd.DataFrame(columns=['col5'])
         col6 = pd.DataFrame(columns=['col6'])
         col7 = pd.DataFrame(columns=['col7'])
@@ -468,6 +476,5 @@ class Trail_trailstop(Trail):
         self.set_ind('trailloss', 1-self.get_ind('close')/self.get_ind('cum_high'))
         self.set_ind('trailprofit', self.get_ind('close')/self.get_ind('cum_low')-1)
         return (self.get_ind('trailprofit')>self.stop_profit)|(self.get_ind('trailloss')>self.stop_loss)
-
 
 
