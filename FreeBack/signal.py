@@ -235,42 +235,48 @@ class Signal():
         self.trail = trail
         self.direct = direct
     # 信号分析
-    def analysis(self):
-        self.mean_return = self.result['returns'].mean()
-        self.mean_dur = self.result['dur'].mean()
-        self.maxdraw = self.result['maxd'].max()
-        self.winrate = (self.result['returns']>0).mean()
-        self.mean_win = self.result[self.result['returns']>0]['returns'].mean()
-        self.mean_loss = self.result[self.result['returns']<0]['returns'].mean()
+    def analysis(self, end_by_trail=False):
+        if end_by_trail:
+            result = self.result[self.result['end']!=self.market.index[-1][0]]
+            result_hold = pd.concat([self.result_after[i] for i in result.index])
+        else:
+            result = self.result
+            result_hold = self.result_hold
+        self.mean_return = result['returns'].mean()
+        self.mean_dur = result['dur'].mean()
+        self.maxdraw = result['maxd'].max()
+        self.winrate = (result['returns']>0).mean()
+        self.mean_win = result[result['returns']>0]['returns'].mean()
+        self.mean_loss = result[result['returns']<0]['returns'].mean()
         self.odds = -self.mean_win/self.mean_loss
-        self.potential_odds = (self.result['maxr']/self.result['maxd']).mean()
+        self.potential_odds = (result['maxr']/result['maxd']).mean()
 
         col0 = pd.DataFrame(columns=['col0'])
-        col0.loc[0] = '信号次数' 
-        col0.loc[1] = len(self.oloc)
-        col0.loc[2] = '开仓次数' 
-        col0.loc[3] = len(self.result)
-        col0.loc[4] = '平均持有时长' 
-        col0.loc[5] = self.result['dur'].mean().round(1)
+        col0.loc[0] = '开仓次数'
+        col0.loc[1] = len(result)
+        col0.loc[2] = '平均持有时长'
+        col0.loc[3] = result['dur'].mean().round(1)
+        col0.loc[4] = '持有至结束占比(%)'
+        col0.loc[5] = round(100*(result['end']==self.market.index[-1][0]).mean(), 1)
         col1 = pd.DataFrame(columns=['col1'])
         col1.loc[0] = '空仓时间占比(%)'
-        col1.loc[1] = round(100-100*len(self.result_hold.index.get_level_values(0).unique())/\
+        col1.loc[1] = round(100-100*len(result_hold.index.get_level_values(0).unique())/\
                         len(self.market.index.get_level_values(0).unique()), 1)
-        col1.loc[2] = '最大重叠信号数' 
-        col1.loc[3] = self.result_hold.reset_index().groupby('date').count().max().values[0]
-        col1.loc[4] = '平均重叠信号数' 
-        col1.loc[5] = self.result_hold.reset_index().groupby('date').count().mean()\
+        col1.loc[2] = '最大持有只数'
+        col1.loc[3] = result_hold.reset_index().groupby('date').count().max().values[0]
+        col1.loc[4] = '平均持有只数'
+        col1.loc[5] = result_hold.reset_index().groupby('date').count().mean()\
             .round(1).values[0]
         col2 = pd.DataFrame(columns=['col2'])
-        col2.loc[0] = '平均收益（万）'  
-        col2.loc[1] = self.result['returns'].mean().round(1)
-        col2.loc[2] = '最大收益（万）'
-        col2.loc[3] = self.result['returns'].max().round(1)
+        col2.loc[0] = '平均收益（万）'
+        col2.loc[1] = result['returns'].mean().round(1)
+        col2.loc[2] = '总收益（万）'
+        col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e4-1e4, 1)
         col2.loc[4] = '最大潜在收益（万）'
-        col2.loc[5] = self.result['maxr'].max().round(1)
+        col2.loc[5] = result['maxr'].max().round(1)
         col3 = pd.DataFrame(columns=['col3'])
         col3.loc[0] = '平均最大回撤（万）'
-        col3.loc[1] = self.result['maxd'].mean().round(1)
+        col3.loc[1] = result['maxd'].mean().round(1)
         col4 = pd.DataFrame(columns=['col4'])
         col5 = pd.DataFrame(columns=['col5'])
         col6 = pd.DataFrame(columns=['col6'])
@@ -306,7 +312,7 @@ class Signal():
     # 从开仓信号得到信号强度(result)、持仓状态(result_hold)和跟踪指标(result_after)
     def run(self, comm=0):
         result = pd.DataFrame(index=self.oloc)
-        result_hold = pd.DataFrame()
+        result_hold = pd.Series()
         result_after = {}
         for start in self.oloc:
             #print('从', start, '开始')
@@ -317,7 +323,10 @@ class Signal():
             after_market = self.market.loc[start[0]:, start[1], :]
             after_market, r = self.trail(after_market, self.direct, comm).run()
             result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd']] = r
-            result_hold = pd.concat([result_hold, pd.DataFrame(index=after_market.index)])
+            if start==self.oloc[0]:
+                result_hold = after_market['stepr']
+            else:
+                result_hold = pd.concat([result_hold, after_market['stepr']])
             result_after[start] = after_market
         self.result = result.dropna()
         self.result_hold = result_hold
@@ -384,6 +393,7 @@ class Trail():
         while self.i<len(self.indexrange):
             self.set_ind('cum_high', max(self.get_ind('cum_high',1), self.get_ind('high')))
             self.set_ind('cum_low', min(self.get_ind('cum_low', 1), self.get_ind('low')))
+            self.set_ind('stepr', self.get_ind('close')/self.get_ind('close', 1)-1)
             # 离场信号发出的下一根bar离场
             if self.check():
                 break
@@ -399,7 +409,7 @@ class Trail():
             maxr,maxd = maxd, maxr
         maxr = maxr-self.comm
         maxd = maxd+self.comm
-        return self.after_market, [self.get_ind()[0], returns, dur, maxr, maxd]
+        return self.after_market, [self.get_index()[0], returns, dur, maxr, maxd]
     # 初始化，在第一根bar上运行
     def init(self):
         pass
@@ -458,7 +468,6 @@ class Trail_trailstop(Trail):
         self.set_ind('trailloss', 1-self.get_ind('close')/self.get_ind('cum_high'))
         self.set_ind('trailprofit', self.get_ind('close')/self.get_ind('cum_low')-1)
         return (self.get_ind('trailprofit')>self.stop_profit)|(self.get_ind('trailloss')>self.stop_loss)
-
 
 
 
