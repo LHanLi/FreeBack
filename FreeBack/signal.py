@@ -337,28 +337,33 @@ class Signal():
         if type(code)==type(0):
             code = self.result.sort_values(by='returns', \
                                 ascending=False).index.get_level_values(1).unique()[code]
+
+        daterange = self.market.index.get_level_values(0).unique()
+        datemap = pd.Series(range(len(daterange)), index=daterange)
+
         plt, fig, ax = FB.display.matplot()
         # 跟踪价格，收盘价
-        l0, = ax.plot(self.market.loc[:, code, :]['close'])
+        l0, = ax.plot(datemap.values, self.market.loc[:, code, :]['close'].values)
         # 开仓信号
-        l1 = ax.scatter(pd.DataFrame(index=self.oloc).loc[:, code, :].index, \
+        l1 = ax.scatter(datemap[pd.DataFrame(index=self.oloc).loc[:, code, :].index].values, \
                 self.market.loc[:, code, :]['close'].loc[\
-                    pd.DataFrame(index=self.oloc).loc[:, code, :].index],\
-                      c='C3', s=10, marker='*', alpha=1)
+                    pd.DataFrame(index=self.oloc).loc[:, code, :].index].values,\
+                    c='C3', s=10, marker='*', alpha=1)
         lines = []
         for date in self.result.loc[:, code, :].index:
-            l2 = ax.vlines(date, self.market.loc[:, code, :]['close'].min(),\
-                       self.market.loc[:, code, :]['close'].max(), colors='C3', linestyle='--')
-            l3 = ax.vlines(self.result_after[(date, code)].loc[:, code, :].index[-1],\
-                             self.market.loc[:, code, :]['close'].min(),\
+            l2 = ax.vlines(datemap[date], self.market.loc[:, code, :]['close'].min(),\
+                    self.market.loc[:, code, :]['close'].max(), colors='C3', linestyle='--')
+            l3 = ax.vlines(datemap[self.result_after[(date, code)].loc[:, code, :].index[-1]],\
+                            self.market.loc[:, code, :]['close'].min(),\
                                 self.market.loc[:, code, :]['close'].max(), colors='C2',\
-                                      linestyle='--')
+                                    linestyle='--')
             #ax1 = ax.twinx()
             for indicator in indicators:
-                l, = ax.plot(self.result_after[(date, code)].loc[:, code, :][indicator])
+                l, = ax.plot(datemap.values, self.result_after[(date, code)].loc[:, code, :][indicator])
                 lines.append(l)
         plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
         plt.title(code)
+
 
 # 跟踪类，
 # 输入: after_market multiindex 单一code
