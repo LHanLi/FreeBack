@@ -391,8 +391,9 @@ class Trail():
     def set_ind(self, ind, value, shift=0):
         self.after_market.loc[self.get_index(shift), ind] = value
     def run(self):
-        self.set_ind('cum_high', self.get_ind('high'))
-        self.set_ind('cum_low', self.get_ind('low'))
+        # 收盘开仓
+        self.set_ind('cum_high', self.get_ind('close'))
+        self.set_ind('cum_low', self.get_ind('close'))
         self.init()
         self.i += 1
         while self.i<len(self.indexrange):
@@ -403,7 +404,8 @@ class Trail():
             if self.check():
                 break
             self.i += 1
-        self.i -= 1
+        if self.i==len(self.indexrange):
+            self.i -= 1
         self.after_market = self.after_market.loc[:self.get_index()]
         returns = self.direct*(1e4*self.get_ind('close')/self.get_ind('close', -1)-1e4)
         returns = returns-2*self.comm
