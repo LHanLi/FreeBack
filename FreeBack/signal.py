@@ -394,6 +394,7 @@ class Trail():
         # 收盘开仓
         self.set_ind('cum_high', self.get_ind('close'))
         self.set_ind('cum_low', self.get_ind('close'))
+        self.set_ind('stepr', 0)
         self.init()
         self.i += 1
         while self.i<len(self.indexrange):
