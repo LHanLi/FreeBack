@@ -264,15 +264,15 @@ class Signal():
         col2.loc[1] = result['returns'].mean().round(1)
         col2.loc[2] = '总收益（万）'
         col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e4-1e4, 1)
-        col2.loc[4] = '正平均收益（万）'
-        pmean = round((1e4*result['returns']>0).mean(), 1)
+        col2.loc[4] = '平均正收益（万）'
+        pmean = round((result[result['returns']>0]['returns']).mean(), 1)
         col2.loc[5] = pmean
         col3 = pd.DataFrame(columns=['col3'])
-        col3.loc[0] = '负平均收益（万）'
-        nmean = round((1e4*result['returns']<0).mean(), 1)
-        col3.loc[1] = nmean
         col3.loc[2] = '平均最大回撤（万）'
         col3.loc[3] = result['maxd'].mean().round(1)
+        col3.loc[4] = '平均负收益（万）'
+        nmean = -round((result[result['returns']<0]['returns']).mean(), 1)
+        col3.loc[5] = nmean
         col4 = pd.DataFrame(columns=['col4'])
         col4.loc[0] = '胜率（%）'
         col4.loc[1] = round(100*(result['returns']>0).mean(), 1)
@@ -490,7 +490,7 @@ class Trail_stopdur(Trail):
         return (self.get_ind('pnl')>self.stop_profit)|(self.get_ind('pnl')<-self.stop_loss)|\
                     ((self.get_ind('dur')-1)==self.hold_dur)
 # 自定义卖出信号
-class Trail_cloc(FB.signal.Trail):
+class Trail_cloc(Trail):
     cloc = None
     def check(self):
         return self.get_index(0) in self.cloc
