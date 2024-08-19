@@ -489,5 +489,8 @@ class Trail_stopdur(Trail):
         self.set_ind('pnl', self.get_ind('close')/self.get_ind('close', -1)-1)
         return (self.get_ind('pnl')>self.stop_profit)|(self.get_ind('pnl')<-self.stop_loss)|\
                     ((self.get_ind('dur')-1)==self.hold_dur)
-
-
+# 自定义卖出信号
+class Trail_cloc(FB.signal.Trail):
+    cloc = None
+    def check(self):
+        return self.get_index(0) in self.cloc
