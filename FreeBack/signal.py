@@ -337,8 +337,7 @@ class Signal():
         if type(code)==type(0):
             code = self.result.sort_values(by='returns', \
                                 ascending=False).index.get_level_values(1).unique()[code]
-
-        daterange = self.market.index.get_level_values(0).unique()
+        daterange = self.market.loc[:, code, :].index.get_level_values(0).unique()
         datemap = pd.Series(range(len(daterange)), index=daterange)
 
         plt, fig, ax = FB.display.matplot()
