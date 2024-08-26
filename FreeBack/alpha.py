@@ -742,7 +742,7 @@ class Reg():
         self.cross_dict = cross_dict
         self.gamma_dict = gamma_dict
         self.result = result
-        FB.display(result)
+        display(result)
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = FB.display.matplot()
