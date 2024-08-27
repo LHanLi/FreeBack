@@ -742,7 +742,7 @@ class Reg():
         self.cross_dict = cross_dict
         self.gamma_dict = gamma_dict
         self.result = result
-        FB.display(result)
+        display(result)
     # 因子收益率
     def factor_return(self, period=1, rolling_period=20):
         plt, fig, ax = FB.display.matplot()
@@ -756,6 +756,23 @@ class Reg():
         ax.legend(bbox_to_anchor=(0.17, 1.06), loc=10, ncol=1)
         ax2 = ax.twinx()
         ax2.plot(250*self.fr_dict[period].rolling(rolling_period).mean(), label='滚动因子收益率（右）', c='C1')
+        #ax2.legend(loc='lower right')
+        ax2.legend(bbox_to_anchor=(0.78, 1.06), loc=10, ncol=1)
+        ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
+        plt.show() 
+    # 累计因子收益率和累计的absIC
+    def alphabeta(self, period=1):
+        plt, fig, ax = FB.display.matplot()
+        cumsum_fr = 250*self.fr_dict[period].cumsum()
+        ax.plot(cumsum_fr, label='累计因子收益率', c='C0')
+        ax.plot(cumsum_fr.rolling(20).min(),\
+                 alpha=0.5, c='C2')
+        ax.plot(cumsum_fr.rolling(20).max(),\
+                  alpha=0.5, c='C3')
+        ax.legend(loc='lower left')
+        ax.legend(bbox_to_anchor=(0.17, 1.06), loc=10, ncol=1)
+        ax2 = ax.twinx()
+        ax2.plot(abs(self.IC_dict[period]).cumsum(), label='累计absIC（右）', c='C1')
         #ax2.legend(loc='lower right')
         ax2.legend(bbox_to_anchor=(0.78, 1.06), loc=10, ncol=1)
         ax.set_xlim(self.factor.index[0][0], self.factor.index[-1][0])
