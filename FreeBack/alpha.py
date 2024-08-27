@@ -371,7 +371,7 @@ class Portfolio():
                     label='等权指数 '+' 换手=%.1f'%(turnover.mean()*250))
         #ax.legend()
         if number<8:
-            ax.legend(bbox_to_anchor=(0.5, -0.55), loc=8, ncol=2)
+            ax.legend(bbox_to_anchor=(0.5, -0.25), loc=8, ncol=3)
         elif number<10:
             ax.legend(bbox_to_anchor=(0.5, -0.65), loc=8, ncol=2)
         else:
@@ -443,7 +443,7 @@ class Portfolio():
         for n in range(len(self.a_b)):
             ax.bar(np.arange(len(df_returns))+move[n], df_returns[self.a_b[n]].values,\
                     width=width, label='%s'%(str(self.a_b[n])))
-        ax.legend(bbox_to_anchor=(0.5,-0.3), loc=10, ncol=3)
+        ax.legend(bbox_to_anchor=(0.5,-0.25), loc=8, ncol=3)
         plt.xticks(x, list(df_returns.index), fontsize=20)
         ax.set_ylabel("(%)")
         check_output()
