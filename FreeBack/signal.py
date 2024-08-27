@@ -336,7 +336,7 @@ class Signal():
     def lookcode(self, code=0, indicators=[]):
         if type(code)==type(0):
             code = self.result.sort_values(by='returns', \
-                                ascending=False).index.get_level_values(1).unique()[code]
+                                ascending=False).index.get_level_values(1)[code]
         daterange = self.market.loc[:, code, :].index.get_level_values(0).unique()
         datemap = pd.Series(range(len(daterange)), index=daterange)
 
@@ -349,6 +349,7 @@ class Signal():
                     pd.DataFrame(index=self.oloc).loc[:, code, :].index].values,\
                     c='C3', s=10, marker='*', alpha=1)
         lines = []
+        ax1 = ax.twinx()
         for date in self.result.loc[:, code, :].index:
             l2 = ax.vlines(datemap[date], self.market.loc[:, code, :]['close'].min(),\
                     self.market.loc[:, code, :]['close'].max(), colors='C3', linestyle='--')
@@ -356,9 +357,11 @@ class Signal():
                             self.market.loc[:, code, :]['close'].min(),\
                                 self.market.loc[:, code, :]['close'].max(), colors='C2',\
                                     linestyle='--')
-            #ax1 = ax.twinx()
             for indicator in indicators:
-                l, = ax.plot(datemap.values, self.result_after[(date, code)].loc[:, code, :][indicator])
+                l, = ax1.plot(datemap.loc[\
+                    self.result_after[(date, code)].loc[:, code, :].index].values,\
+                              self.result_after[(date, code)].loc[:, code, :][indicator].values,\
+                                c='C1', alpha=0.5)
                 lines.append(l)
         plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
         plt.title(code)
