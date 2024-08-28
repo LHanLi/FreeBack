@@ -22,7 +22,7 @@ class MetaStrat():
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
     # price，当前日期可以获得的价格数据,可以使用 'close'收盘价（有一点未来信息），或者下根bar开盘价/TWAP/VWAP
-    def __init__(self, market, inexclude, score=None, hold_num=None, price='close', interval=1):
+    def __init__(self, market, inexclude, score=None, hold_num=None, price='close', interval=1, direct=1):
         self.inexclude = inexclude
         self.score = score
         self.hold_num = hold_num
@@ -33,6 +33,7 @@ class MetaStrat():
         self.market = market
         self.price = price
         self.interval = interval
+        self.direct = direct
     # 为market添加cash品种
     def add_cash(self):
         cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
@@ -110,9 +111,10 @@ class MetaStrat():
         # 虚拟货值矩阵
         self.df_amount = (self.df_hold*self.df_price).fillna(0)
         # 权重矩阵
-        self.df_weight = (self.df_amount.apply(lambda x: (x/x.sum()).fillna(0), axis=1))
+        self.df_weight = (self.df_amount.apply(lambda x:\
+                                        (x/x.sum()).fillna(0), axis=1))
         # 净值贡献矩阵
-        returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
+        returns = self.direct*(self.df_price/self.df_price.shift() - 1).fillna(0)
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)
         self.net = (self.returns+1).cumprod()
