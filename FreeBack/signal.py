@@ -262,8 +262,8 @@ class Signal():
         col2 = pd.DataFrame(columns=['col2'])
         col2.loc[0] = '平均收益（万）'
         col2.loc[1] = result['returns'].mean().round(1)
-        col2.loc[2] = '总收益（万）'
-        col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e4-1e4, 1)
+        col2.loc[2] = '总收益（%）'
+        col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e2-1e2, 1)
         col2.loc[4] = '平均正收益（万）'
         pmean = round((result[result['returns']>0]['returns']).mean(), 1)
         col2.loc[5] = pmean
