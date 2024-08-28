@@ -415,7 +415,7 @@ class Trail():
         self.after_market = self.after_market.loc[:self.get_index()]
         returns = self.direct*(1e4*self.get_ind('close')/self.get_ind('close', -1)-1e4)
         returns = returns-2*self.comm
-        dur = len(self.after_market)
+        dur = len(self.after_market)-1
         maxr = 1e4*self.get_ind('cum_high')/self.get_ind('close', -1)-1e4
         maxd = 1e4-1e4*self.get_ind('cum_low')/self.get_ind('close', -1)
         if self.direct==-1:
