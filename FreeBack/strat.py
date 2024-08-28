@@ -75,7 +75,7 @@ class MetaStrat():
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 等权（总账户市值1块钱）
         df_hold = (1/df_hold[self.price].unstack()).fillna(0)
-        self.df_hold = df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
+        self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self, df):
         if self.interval!=1:
@@ -105,16 +105,17 @@ class MetaStrat():
         # 判断cash是否在持仓，如果在的话避免price没有cash列
         if 'cash' in self.df_hold.columns:
             self.add_cash()
-        # 价格矩阵，去掉全是0的列
-        self.df_price = pd.DataFrame(self.market[self.price]).\
-            pivot_table(self.price, 'date' ,'code')[self.df_hold.columns].copy()
+        # 价格矩阵，去掉没有持仓过的标的，缺失价格数据（nan）的日期
+        df_price = pd.DataFrame(self.market[self.price]).\
+            pivot_table(self.price, 'date' ,'code')[self.df_hold.columns]
+        self.df_price = df_price[~df_price.isna().all(axis=1)].copy()
         # 虚拟货值矩阵
         self.df_amount = (self.df_hold*self.df_price).fillna(0)
         # 权重矩阵
         self.df_weight = (self.df_amount.apply(lambda x:\
-                                        (x/x.sum()).fillna(0), axis=1))
+                                        (x/abs(x.sum())).fillna(0), axis=1))
         # 净值贡献矩阵
-        returns = self.direct*(self.df_price/self.df_price.shift() - 1).fillna(0)
+        returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
         self.df_contri = (self.df_weight.shift()*returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)
         self.net = (self.returns+1).cumprod()
