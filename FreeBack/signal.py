@@ -315,15 +315,18 @@ class Signal():
         result_hold = pd.Series()
         result_after = {}
         for start in self.oloc:
+            if start not in self.market.index:
+                #print('开仓信号', start, '不在market，忽略。')
+                continue
             #print('从', start, '开始')
             if start in result_hold.index:
                 #print('开仓信号', start, '在持有状态，忽略。')
                 continue
-            # 信号触发后的market
-            after_market = self.market.loc[start[0]:, start[1], :]
+            # 信号触发后的market, copy后速度反而加快（41~50s -> 38s）
+            after_market = self.market.loc[start[0]:, start[1], :].copy()
             after_market, r = self.trail(after_market, self.direct, comm).run()
             result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd']] = r
-            if start==self.oloc[0]:
+            if result_hold.empty:
                 result_hold = after_market['stepr']
             else:
                 result_hold = pd.concat([result_hold, after_market['stepr']])
