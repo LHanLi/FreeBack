@@ -327,8 +327,10 @@ class Signal():
             after_market, r = self.trail(after_market, self.direct, comm).run()
             result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd']] = r
             if result_hold.empty:
+                #result_hold = after_market['stepr'].iloc[1:]
                 result_hold = after_market['stepr']
             else:
+                #result_hold = pd.concat([result_hold.iloc[1:], after_market['stepr']])
                 result_hold = pd.concat([result_hold, after_market['stepr']])
             result_after[start] = after_market
         self.result = result.dropna()
