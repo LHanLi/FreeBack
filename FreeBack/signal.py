@@ -234,7 +234,7 @@ class Signal():
         self.oloc = oloc
         self.trail = trail
         self.direct = direct
-    # 信号分析
+    # 信号分析（是否只分析通过trail结束的信号）
     def analysis(self, end_by_trail=False):
         if end_by_trail:
             result = self.result[self.result['end']!=self.market.index[-1][0]]
