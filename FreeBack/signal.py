@@ -329,7 +329,7 @@ class Signal():
             if result_hold.empty:
                 result_hold = after_market['stepr'].iloc[1:]
             else:
-                result_hold = pd.concat([result_hold.iloc[1:], after_market['stepr']])
+                result_hold = pd.concat([result_hold, after_market['stepr'].iloc[1:]])
             result_after[start] = after_market
         self.result = result.dropna()
         self.result_hold = result_hold
@@ -368,6 +368,7 @@ class Signal():
                 lines.append(l)
         plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
         plt.title(code)
+        plt.show()
 
 
 # 跟踪类，
