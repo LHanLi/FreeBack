@@ -445,7 +445,8 @@ class StratPost(ReturnsPost):
         self.keeppool_rank = strat0.keeppool_rank  
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
-                                benchmark, stratname, freq, rf, fast)
+                                benchmark=benchmark, stratname=stratname,\
+                                      freq=freq, rf=rf, show=show)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
