@@ -435,7 +435,7 @@ class FundPost(ReturnsPost):
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False, comm=0):
+                 benchmark=0, stratname='策略', freq='day', rf=0.03, show=True, comm=0):
         #self.strat = strat0
         self.market = market
         self.comm = comm
