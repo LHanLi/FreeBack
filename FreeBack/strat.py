@@ -82,27 +82,37 @@ class MetaStrat():
         # 等权（总账户市值1块钱）
         if type(self.hold_weight)==type(None): 
             df_hold = (1/df_hold[self.price].unstack()).fillna(0)
+        # 赋权
         else:
             df_hold = ((self.hold_weight/df_hold[self.price]).dropna().unstack()).fillna(0)
         self.df_hold = self.direct*df_hold
         #self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self, df):
-        if self.interval!=1:
+        if type(self.interval)!=int:
+            # 选取调仓日
+            take_df = [pd.Series(index=sorted(self.interval)).loc[:date].index[-1]\
+                        for date in df.index]
+        elif self.interval!=1:
             # 以interval为周期 获取df 
             # 选取的index  interval = 3  0,0,0,3,3,3,6...
             take_df = [df.index[int(i/self.interval)*self.interval]\
                                 for i in range(len(df.index))]
-            real_df = df.loc[take_df].copy()
-            ## 提取的index非连续，复原到原来的连续交易日index
-            real_df.index = df.index
-            return real_df
-        return df
+        else:
+            return df
+        real_df = df.loc[take_df].copy()
+        ## 提取的index非连续，复原到原来的连续交易日index
+        real_df.index = df.index
+        return real_df
     # 运行策略
     def run(self):
         #time0 = time.time()
         self.get_hold()
         df_hold = self.get_interval(self.df_hold)
+        keeppool_rank = self.get_interval(self.keeppool_rank.fillna(1).\
+                                    groupby('date').cumsum().unstack()).stack()
+        self.keeppool_rank = keeppool_rank.reset_index().sort_values(by=['date',0]).\
+            set_index(['date', 'code'])[0]
         #print('获取持仓表耗时', time.time()-time0)
         #time0 = time.time()
         # 去掉一直持仓为0的品种
@@ -198,6 +208,7 @@ class ComboStrat(MetaStrat):
             keeppool_rank.append(strati.keeppool_rank)
         self.keeppool_rank = pd.concat(keeppool_rank).reset_index().\
             sort_values(by=['date', 0]).set_index(['date', 'code'])[0]
+        self.keeppool_rank = self.get_interval(self.keeppool_rank)
         self.df_hold = pd.concat(df_holds).sort_values(by='date').fillna(0)
 
 
