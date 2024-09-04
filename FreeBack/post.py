@@ -487,7 +487,7 @@ class StratPost(ReturnsPost):
             temp = self.held.loc[date].sort_values(by='weight', ascending=False)
             iamount = 0
             for idx,val in temp.iterrows():
-                if 'name' in self.market.columns:
+                if ('name' in self.market.columns)&(type(self.market)!=type(None)):
                     keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
                         str(round(100*val['weight'], 2))+'%'+\
                             ', 收益率：'+'%03d'%(1e4*val['contri'])
