@@ -26,8 +26,10 @@ def check_output():
 ##########################################################################################
 class ReturnsPost():
     # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
-    # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准 
-    def __init__(self, returns, benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False):
+    # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准
+    # show 是否绘制表格 
+    def __init__(self, returns, benchmark=0, stratname='策略', freq='day',\
+                  rf=0.03, show=True):
         self.stratname = stratname
         self.returns = returns.fillna(0)
         # returns频率， 目前支持day, week
@@ -38,40 +40,41 @@ class ReturnsPost():
             self.freq = freq
         # 无风险利率
         self.rf = rf
-        if fast:
-            # 策略绝对表现
-            self.bars = len(self.returns)  
-            self.net = (1+self.returns).cumprod()
-            self.lr = np.log(self.returns + 1)
-            self.return_total = self.net.iloc[-1]-1                    
-            self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
-            self.return_annual = (self.return_total+1)**(1/self.years)-1   
-            self.sigma = np.exp(self.lr.std())-1
-            if self.freq == 'day':
-                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
-            elif self.freq == 'week':
-                self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(48))
-            a = np.maximum.accumulate(self.net)
-            self.drawdown = (a-self.net)/a
-            # 基准指数
-            if type(benchmark)==type(0):
-                benchmark = pd.DataFrame(index = self.returns.index)
-                benchmark['zero'] = 0
-                self.benchmark = benchmark
-            self.benchmark = benchmark.loc[self.returns.index].fillna(0)
-        else: 
-            # 基准指数
-            if type(benchmark)==type(0):
-                benchmark = pd.DataFrame(index = self.returns.index)
-                benchmark['zero'] = 0
-                self.benchmark = benchmark
-            self.benchmark = benchmark.loc[self.returns.index].fillna(0)
-            self.sigma_benchmark = np.exp(np.log(self.benchmark[\
-                self.benchmark.columns[0]]+1).std())-1
-            self.cal_detail()
+        #if fast:
+        #    # 策略绝对表现
+        #    self.bars = len(self.returns)  
+        #    self.net = (1+self.returns).cumprod()
+        #    self.lr = np.log(self.returns + 1)
+        #    self.return_total = self.net.iloc[-1]-1                    
+        #    self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
+        #    self.return_annual = (self.return_total+1)**(1/self.years)-1   
+        #    self.sigma = np.exp(self.lr.std())-1
+        #    if self.freq == 'day':
+        #        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        #    elif self.freq == 'week':
+        #        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(48))
+        #    a = np.maximum.accumulate(self.net)
+        #    self.drawdown = (a-self.net)/a
+        #    # 基准指数
+        #    if type(benchmark)==type(0):
+        #        benchmark = pd.DataFrame(index = self.returns.index)
+        #        benchmark['zero'] = 0
+        #        self.benchmark = benchmark
+        #    self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+        #else: 
+        # 基准指数
+        if type(benchmark)==type(0):
+            benchmark = pd.DataFrame(index = self.returns.index)
+            benchmark['zero'] = 0
+            self.benchmark = benchmark
+        self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+        self.sigma_benchmark = np.exp(np.log(self.benchmark[\
+            self.benchmark.columns[0]]+1).std())-1
+        self.cal_detail(show)
+        if show:
             self.detail()
     # 详细评价表
-    def cal_detail(self):
+    def cal_detail(self, show=False):
         # 策略绝对表现
         self.net = (1+self.returns).cumprod()
         self.lr = np.log(self.returns + 1)
@@ -108,50 +111,51 @@ class ReturnsPost():
         self.alpha = model.params['const']
         #model.summary()
 
-        col0 = pd.DataFrame(columns=['col0'])
-        if self.freq == 'day':
-            col0.loc[0] = '回测时间（年, 日）'
-        elif self.freq == 'week':
-            col0.loc[0] = '回测时间（年, 周）'
-        col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
-        col1 = pd.DataFrame(columns=['col1'])
-        col1.loc[0] = '年化收益率（%）'
-        col1.loc[1] = round(self.return_annual*100,1)
-        col1.loc[2] = '年化超额收益率（%）'
-        col1.loc[3] = round(self.excess_return_annual*100,1)
-        col2 = pd.DataFrame(columns=['col2'])
-        col2.loc[0] = '日胜率（%）'  # 没亏就是赢
-        col2.loc[1] = round(100*(self.returns>=0).mean(),1)
-        col2.loc[2] = '超额日胜率（%）'
-        col2.loc[3] = round(100*(self.excess_lr>0).mean(),1)
-        col3 = pd.DataFrame(columns=['col3'])
-        col3.loc[0] = '最大回撤（%）'
-        col3.loc[1] = round(max(self.drawdown)*100, 1)
-        col3.loc[2] = '超额最大回撤（%）'
-        col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
-        col3.loc[4] = '波动率（%）'
-        col3.loc[5] = round(self.sigma*np.sqrt(self.anunal_num)*100, 1)
-        col4 = pd.DataFrame(columns=['col4'])
-        col4.loc[0] = 'beta系数'
-        col4.loc[1] = round(self.beta,2)
-        col4.loc[2] = 'alpha（%）'
-        col4.loc[3] = round(self.alpha*self.anunal_num*100,1)
-        col5 = pd.DataFrame(columns=['col5'])
-        col5.loc[0] = '夏普比率'
-        col5.loc[1] = round(self.sharpe,2)
-        col5.loc[2] = '超额夏普'
-        col5.loc[3] = round(self.excess_sharpe,2)
-        col5.loc[4] = '卡玛比率'
-        col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
-        col6 = pd.DataFrame(columns=['col6'])
-        col6.loc[0] = ''
-        col6.loc[1] = ''
-        col7 = pd.DataFrame(columns=['col7'])
-        col7.loc[0] = '游程检验（%）'   # 拒绝随机假设的概率
-        col7.loc[1] = round(100*runstest_1samp(self.returns>0)[1],2)
-        df_details = pd.concat([col0, col1, col2, col3, \
-                col4, col5, col6, col7], axis=1).fillna('')
-        self.df_details = df_details
+        if show:
+            col0 = pd.DataFrame(columns=['col0'])
+            if self.freq == 'day':
+                col0.loc[0] = '回测时间（年, 日）'
+            elif self.freq == 'week':
+                col0.loc[0] = '回测时间（年, 周）'
+            col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
+            col1 = pd.DataFrame(columns=['col1'])
+            col1.loc[0] = '年化收益率（%）'
+            col1.loc[1] = round(self.return_annual*100,1)
+            col1.loc[2] = '年化超额收益率（%）'
+            col1.loc[3] = round(self.excess_return_annual*100,1)
+            col2 = pd.DataFrame(columns=['col2'])
+            col2.loc[0] = '日胜率（%）'  # 没亏就是赢
+            col2.loc[1] = round(100*(self.returns>=0).mean(),1)
+            col2.loc[2] = '超额日胜率（%）'
+            col2.loc[3] = round(100*(self.excess_lr>0).mean(),1)
+            col3 = pd.DataFrame(columns=['col3'])
+            col3.loc[0] = '最大回撤（%）'
+            col3.loc[1] = round(max(self.drawdown)*100, 1)
+            col3.loc[2] = '超额最大回撤（%）'
+            col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
+            col3.loc[4] = '波动率（%）'
+            col3.loc[5] = round(self.sigma*np.sqrt(self.anunal_num)*100, 1)
+            col4 = pd.DataFrame(columns=['col4'])
+            col4.loc[0] = 'beta系数'
+            col4.loc[1] = round(self.beta,2)
+            col4.loc[2] = 'alpha（%）'
+            col4.loc[3] = round(self.alpha*self.anunal_num*100,1)
+            col5 = pd.DataFrame(columns=['col5'])
+            col5.loc[0] = '夏普比率'
+            col5.loc[1] = round(self.sharpe,2)
+            col5.loc[2] = '超额夏普'
+            col5.loc[3] = round(self.excess_sharpe,2)
+            col5.loc[4] = '卡玛比率'
+            col5.loc[5] = round(self.return_annual/max(self.drawdown),2)
+            col6 = pd.DataFrame(columns=['col6'])
+            col6.loc[0] = ''
+            col6.loc[1] = ''
+            col7 = pd.DataFrame(columns=['col7'])
+            col7.loc[0] = '游程检验（%）'   # 拒绝随机假设的概率
+            col7.loc[1] = round(100*runstest_1samp(self.returns>0)[1],2)
+            df_details = pd.concat([col0, col1, col2, col3, \
+                    col4, col5, col6, col7], axis=1).fillna('')
+            self.df_details = df_details
     def detail(self):
         plt, fig, ax = FB.display.matplot(w=22)
         column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
@@ -431,7 +435,7 @@ class FundPost(ReturnsPost):
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', freq='day', rf=0.03, fast=False, comm=0):
+                 benchmark=0, stratname='策略', freq='day', rf=0.03, show=True, comm=0):
         #self.strat = strat0
         self.market = market
         self.comm = comm
@@ -441,7 +445,8 @@ class StratPost(ReturnsPost):
         self.keeppool_rank = strat0.keeppool_rank  
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
-                                benchmark, stratname, freq, rf, fast)
+                                benchmark=benchmark, stratname=stratname,\
+                                      freq=freq, rf=rf, show=show)
     def detail(self):
         # 空仓时间
         self.df_details.loc[2, 'col0'] = '空仓时间（日）'
