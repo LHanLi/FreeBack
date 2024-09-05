@@ -153,80 +153,80 @@ def parallel_group(df, func, n_core=12, sort_by='code'):
 # a 函数可选参数
 
 
-def cal_ts(ser, func_name='Max', period=20, a=1, parallel=True, n_core=12):
+def cal_ts(ser, func_name='Max', period=20, a=1, parallel=True, n_core=12, min_periods=1):
     if func_name=='MA':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).mean()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).mean()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='EMA':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').ewm(\
-            span=period, min_periods=1).mean()).reset_index().sort_values(by='date').\
+            span=period, min_periods=min_periods).mean()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Max':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).max()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).max()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Min':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).min()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).min()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Std':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).std()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).std()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Skew':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).skew()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).skew()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Kurt':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).kurt()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).kurt()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='Sum':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).sum()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).sum()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     elif func_name=='rank':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).rank()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).rank()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0] 
     elif func_name=='quantile':
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).quantile(a)).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).quantile(a)).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0] 
     elif func_name=='Zscore':
         MA = ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).mean()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).mean()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
         Std = ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).std()).reset_index().sort_values(by='date').\
+            period, min_periods=min_periods).std()).reset_index().sort_values(by='date').\
                 set_index(['date', 'code']).loc[ser.index].iloc[:,0]
         return ((ser-MA)/Std).fillna(0)
     #elif func_name=='HV':
     #    returns = np.log(ser/ser.groupby(level='code').shift()).fillna(0)
     #    return np.exp(returns.groupby(level='code').apply(lambda x: x.droplevel('code').rolling(\
-    #        period, min_periods=1).std()*np.sqrt(250)).reset_index().sort_values(\
+    #        period, min_periods=min_periods).std()*np.sqrt(250)).reset_index().sort_values(\
     #            by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0])-1
     elif func_name in ['WMA']:
         if parallel:
             def func(ser):
                 return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-                    period, min_periods=1).apply(lambda x: x[::-1].cumsum().sum()/(period*(1+period)/2)))
+                    period, min_periods=min_periods).apply(lambda x: x[::-1].cumsum().sum()/(period*(1+period)/2)))
             result = parallel_group(ser, func, n_core=n_core)
             return result.reset_index().sort_values(by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0]
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).apply(lambda x: x[::-1].cumsum().sum()/(period*(1+period)/2))).reset_index().\
+            period, min_periods=min_periods).apply(lambda x: x[::-1].cumsum().sum()/(period*(1+period)/2))).reset_index().\
                 sort_values(by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0]
     # 在rolling中无法直接调用的函数只能通过这种方法，速度慢几个数量级
     elif func_name in ['argmin', 'argmax', 'prod']:
         if parallel:
             def func(ser):
                 return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-                    period, min_periods=1).apply(getattr(np, func_name)))
+                    period, min_periods=min_periods).apply(getattr(np, func_name)))
             result = parallel_group(ser, func, n_core=n_core)
             return result.reset_index().sort_values(by='date').set_index(['date', 'code']).loc[ser.index].iloc[:,0]
         return ser.groupby(level='code').apply(lambda x: x.droplevel( 'code').rolling(\
-            period, min_periods=1).apply(getattr(np, func_name))).reset_index().sort_values(by='date').set_index(\
+            period, min_periods=min_periods).apply(getattr(np, func_name))).reset_index().sort_values(by='date').set_index(\
                 ['date', 'code']).loc[ser.index].iloc[:,0]
 
 
