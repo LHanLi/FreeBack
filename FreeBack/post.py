@@ -21,6 +21,9 @@ def check_output():
     else:
         os.mkdir('output')
 
+riskfreerate = 0.02
+
+
 ##########################################################################################
 ####################### 处理收益率序列（简单收益率，非对数收益率） ###########################
 ##########################################################################################
@@ -29,7 +32,7 @@ class ReturnsPost():
     # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准
     # show 是否绘制表格 
     def __init__(self, returns, benchmark=0, stratname='策略', freq='day',\
-                  rf=0.03, show=True):
+                  rf=riskfreerate, show=True):
         self.stratname = stratname
         self.returns = returns.fillna(0)
         # returns频率， 目前支持day, week
@@ -381,7 +384,7 @@ class BatchPost():
 ####################### 分析基金收益率 ###########################
 ##########################################################################################
 class FundPost(ReturnsPost):
-    def __init__(self, returns, benchmark=None, fundname='基金名称', rf = 0.03, fast=False):
+    def __init__(self, returns, benchmark=None, fundname='基金名称', rf = riskfreerate, fast=False):
         super().__init__(returns, benchmark=benchmark, stratname=fundname, freq='week', rf=rf, fast=fast)
 
     # 计算策略的因子暴露
@@ -435,7 +438,7 @@ class FundPost(ReturnsPost):
 class StratPost(ReturnsPost):
     # 持仓表、单边交易成本、market()
     def __init__(self, strat0, market=None, \
-                 benchmark=0, stratname='策略', freq='day', rf=0.03, show=True, comm=0):
+                 benchmark=0, stratname='策略', freq='day', rf=riskfreerate, show=True, comm=0):
         #self.strat = strat0
         self.market = market
         self.comm = comm
@@ -534,7 +537,7 @@ class WorldPost():
         # 策略名
         self.stratname = stratname
         # 无风险利率
-        self.rf = 0.03
+        self.rf = riskfreerate
         # 基准
         if type(benchmark) == type(None):
             benchmark = pd.DataFrame(index = world.series_net.index)
