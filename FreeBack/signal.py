@@ -227,9 +227,18 @@ class SignalPost():
 import FreeBack as FB
 from plottable import ColumnDefinition, ColDef, Table
 
+
+ATR_period = 20
+
 class Signal():
     # 开仓信号坐标，开仓方向
     def __init__(self, market, oloc, trail, direct=1):
+        # 计算波动水平
+        TR = pd.concat([market['high']-market['low'], \
+                abs(market['close'].groupby('code').shift()-market['high']),\
+                abs(market['close'].groupby('code').shift()-market['low'])],\
+              axis=1).max(axis=1)
+        market['ATR'] = FB.my_pd.cal_ts(TR, 'MA', ATR_period)
         self.market = market
         self.oloc = oloc
         self.trail = trail
@@ -264,13 +273,13 @@ class Signal():
         col2.loc[1] = result['returns'].mean().round(1)
         col2.loc[2] = '总收益（%）'
         col2.loc[3] = round((result_hold.groupby('date').mean()+1).prod()*1e2-1e2, 1)
-        col2.loc[4] = '平均正收益（万）'
-        pmean = round((result[result['returns']>0]['returns']).mean(), 1)
-        col2.loc[5] = pmean
+        col2.loc[4] = '平均潜在收益（万）'
+        col2.loc[5] = result['maxr'].mean().round(1) 
         col3 = pd.DataFrame(columns=['col3'])
         col3.loc[2] = '平均最大回撤（万）'
         col3.loc[3] = result['maxd'].mean().round(1)
         col3.loc[4] = '平均负收益（万）'
+        pmean = round((result[result['returns']>0]['returns']).mean(), 1)
         nmean = -round((result[result['returns']<0]['returns']).mean(), 1)
         col3.loc[5] = nmean
         col4 = pd.DataFrame(columns=['col4'])
@@ -279,6 +288,9 @@ class Signal():
         col4.loc[2] = '赔率'
         col4.loc[3] = round(pmean/nmean, 1)
         col5 = pd.DataFrame(columns=['col5'])
+        col5.loc[0] = 'E ratio'
+        col5.loc[1] = round((self.result['maxr']/self.result['ATR']).mean()/\
+                            (self.result['maxd']/self.result['ATR']).mean(),2) 
         col6 = pd.DataFrame(columns=['col6'])
         col7 = pd.DataFrame(columns=['col7'])
         df_details = pd.concat([col0, col1, col2, col3, \
@@ -325,7 +337,7 @@ class Signal():
             # 信号触发后的market, copy后速度反而加快（41~50s -> 38s）
             after_market = self.market.loc[start[0]:, start[1], :].copy()
             after_market, r = self.trail(after_market, self.direct, comm).run()
-            result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd']] = r
+            result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd', 'ATR']] = r
             if result_hold.empty:
                 result_hold = after_market['stepr'].iloc[1:]
             else:
@@ -369,7 +381,20 @@ class Signal():
         plt.legend([l0, l1, l2, l3, ]+lines, ['收盘价', '开仓信号', '开仓', '平仓']+indicators)
         plt.title(code)
         plt.show()
+    # 信号的时序情况
+    def plot_ts(self):
+        plt, fig, ax = FB.display.matplot()
+        mean_returns = self.result.groupby('date')['returns'].mean()
+        num_signals = self.result.groupby('date')['returns'].count()
+        l0 = ax.bar(mean_returns.index, mean_returns.values)
+        ax1 = ax.twinx()
+        l1 = ax1.bar(num_signals.index, num_signals.values, color='C7', alpha=0.3)
 
+        plt.legend([l0, l1], ['平均收益', '信号次数（右）'])
+        ax.set_ylabel('（万）')
+        FB.post.check_output()
+        plt.savefig('./output/ts.png')
+        plt.show()
 
 # 跟踪类，
 # 输入: after_market multiindex 单一code
@@ -423,7 +448,8 @@ class Trail():
             maxr,maxd = maxd, maxr
         maxr = maxr-self.comm
         maxd = maxd+self.comm
-        return self.after_market, [self.get_index()[0], returns, dur, maxr, maxd]
+        ATR = self.get_ind('ATR')
+        return self.after_market, [self.get_index()[0], returns, dur, maxr, maxd, ATR]
     # 初始化，在第一根bar上运行
     def init(self):
         pass
