@@ -232,7 +232,7 @@ ATR_period = 20
 
 class Signal():
     # 开仓信号坐标，开仓方向
-    def __init__(self, market, oloc, trail, direct=1):
+    def __init__(self, market, oloc, trail, direct=1, benchmark=None):
         # 计算波动水平
         TR = pd.concat([market['high']-market['low'], \
                 abs(market['close'].groupby('code').shift()-market['high']),\
@@ -243,6 +243,7 @@ class Signal():
         self.oloc = oloc
         self.trail = trail
         self.direct = direct
+        self.benchmark = benchmark
     # 信号分析（是否只分析通过trail结束的信号）
     def analysis(self, end_by_trail=False):
         if end_by_trail:
@@ -276,21 +277,26 @@ class Signal():
         col2.loc[4] = '平均潜在收益（万）'
         col2.loc[5] = result['maxr'].mean().round(1) 
         col3 = pd.DataFrame(columns=['col3'])
-        col3.loc[2] = '平均最大回撤（万）'
-        col3.loc[3] = result['maxd'].mean().round(1)
-        col3.loc[4] = '平均负收益（万）'
+        col3.loc[0] = '平均超额收益（万）'
+        if type(self.benchmark)!=type(None):
+            col3.loc[1] = round(result['excess_returns'].mean(), 1)
+        else:
+            col3.loc[1] = 'nan'
+        col4 = pd.DataFrame(columns=['col4'])
+        col4.loc[0] = '平均最大回撤（万）'
+        col4.loc[1] = result['maxd'].mean().round(1)
+        col4.loc[2] = '平均负收益（万）'
         pmean = round((result[result['returns']>0]['returns']).mean(), 1)
         nmean = -round((result[result['returns']<0]['returns']).mean(), 1)
-        col3.loc[5] = nmean
-        col4 = pd.DataFrame(columns=['col4'])
-        col4.loc[0] = '胜率（%）'
-        col4.loc[1] = round(100*(result['returns']>0).mean(), 1)
-        col4.loc[2] = '赔率'
-        col4.loc[3] = round(pmean/nmean, 1)
+        col4.loc[3] = nmean
         col5 = pd.DataFrame(columns=['col5'])
-        col5.loc[0] = 'E ratio'
-        col5.loc[1] = round((self.result['maxr']/self.result['ATR']).mean()/\
-                            (self.result['maxd']/self.result['ATR']).mean(),2) 
+        col5.loc[0] = '胜率（%）'
+        col5.loc[1] = round(100*(result['returns']>0).mean(), 1)
+        col5.loc[2] = '赔率'
+        col5.loc[3] = round(pmean/nmean, 1)
+        col5.loc[4] = 'E ratio'
+        col5.loc[5] = round((self.result['maxr']/self.result['ATR']).mean()/\
+                            (self.result['maxd']/self.result['ATR']).mean(),2)
         col6 = pd.DataFrame(columns=['col6'])
         col7 = pd.DataFrame(columns=['col7'])
         df_details = pd.concat([col0, col1, col2, col3, \
@@ -300,8 +306,8 @@ class Signal():
         column_definitions = [ColumnDefinition(name='col0', group="基本参数"), \
                               ColumnDefinition(name='col1', group="基本参数"), \
                             ColumnDefinition(name='col2', group='收益能力'), \
-                            ColumnDefinition(name='col3', group='风险水平'), \
-                            ColumnDefinition(name="col4", group='风险调整'), \
+                            ColumnDefinition(name='col3', group='收益能力'), \
+                            ColumnDefinition(name="col4", group='风险水品'), \
                             ColumnDefinition(name="col5", group='风险调整'), \
                             ColumnDefinition(name="col6", group='策略执行'),
                             ColumnDefinition(name="col7", group='业绩持续性分析')] + \
@@ -322,7 +328,7 @@ class Signal():
         plt.savefig('./output/details.png')
         plt.show()
     # 从开仓信号得到信号强度(result)、持仓状态(result_hold)和跟踪指标(result_after)
-    def run(self, comm=0):
+    def run(self, comm=0, opentime='close'):
         result = pd.DataFrame(index=self.oloc)
         result_hold = pd.Series()
         result_after = {}
@@ -336,14 +342,20 @@ class Signal():
                 continue
             # 信号触发后的market, copy后速度反而加快（41~50s -> 38s）
             after_market = self.market.loc[start[0]:, start[1], :].copy()
-            after_market, r = self.trail(after_market, self.direct, comm).run()
+            after_market, r = self.trail(after_market, self.direct, comm, opentime).run()
             result.loc[start, ['end', 'returns', 'dur', 'maxr', 'maxd', 'ATR']] = r
             if result_hold.empty:
                 result_hold = after_market['stepr'].iloc[1:]
             else:
                 result_hold = pd.concat([result_hold, after_market['stepr'].iloc[1:]])
             result_after[start] = after_market
-        self.result = result.dropna()
+        result = result.dropna()
+        if type(self.benchmark)!=type(None):
+            result['excess_returns'] = pd.Series(result.reset_index().\
+                apply(lambda x: 1e4*(1+x['returns']/1e4)/\
+                    (self.benchmark.loc[x['date']:x['end']]+1).prod()-1e4, axis=1).values,\
+                        index=result.index)
+        self.result = result
         self.result_hold = result_hold
         self.result_after = result_after
     # 观察单标的择时情况，code可以输入代码或者整数当输入整数时展示单次最大收益的代码，\
@@ -384,13 +396,16 @@ class Signal():
     # 信号的时序情况
     def plot_ts(self):
         plt, fig, ax = FB.display.matplot()
-        mean_returns = self.result.groupby('date')['returns'].mean()
+        # 有benchmark算超额，没有算绝对
+        mean_returns = self.result.groupby('date')[\
+            'returns' if type(self.benchmark)==type(None) else 'excess_returns'].mean() 
         num_signals = self.result.groupby('date')['returns'].count()
         l0 = ax.bar(mean_returns.index, mean_returns.values)
         ax1 = ax.twinx()
         l1 = ax1.bar(num_signals.index, num_signals.values, color='C7', alpha=0.3)
 
-        plt.legend([l0, l1], ['平均收益', '信号次数（右）'])
+        plt.legend([l0, l1], ['平均收益' if type(self.benchmark)==type(None) else '平均超额',\
+                               '信号次数（右）'])
         ax.set_ylabel('（万）')
         FB.post.check_output()
         plt.savefig('./output/ts.png')
@@ -399,11 +414,13 @@ class Signal():
 # 跟踪类，
 # 输入: after_market multiindex 单一code
 # 输出：持仓坐标、带有指标的after_market、[收益，持有时间，最大收益，最大回撤]
+# opentime 'close'：信号所在收盘价开仓， 'open'：信号下一根bar开盘价格开仓
 class Trail():
-    def __init__(self, after_market, direct=1, comm=0):
+    def __init__(self, after_market, direct=1, comm=0, opentime='close'):
         self.after_market = after_market
         self.direct = direct
         self.comm = comm
+        self.opentime = opentime
         # 游标
         self.indexrange = self.after_market.index
         self.i = 0
@@ -431,7 +448,14 @@ class Trail():
         while self.i<len(self.indexrange):
             self.set_ind('cum_high', max(self.get_ind('cum_high',1), self.get_ind('high')))
             self.set_ind('cum_low', min(self.get_ind('cum_low', 1), self.get_ind('low')))
-            self.set_ind('stepr', self.get_ind('close')/self.get_ind('close', 1)-1)
+            # 不同开仓方式仅在第一根bar产生区别
+            if self.i==1:
+                if self.opentime=='close':
+                    self.set_ind('stepr', self.get_ind('close')/self.get_ind('close', 1)-1)
+                elif self.opentime=='open':
+                    self.set_ind('stepr', self.get_ind('close')/self.get_ind('open', 1)-1)
+            else:
+                self.set_ind('stepr', self.get_ind('close')/self.get_ind('close', 1)-1)
             # 离场信号发出的下一根bar离场
             if self.check():
                 break
