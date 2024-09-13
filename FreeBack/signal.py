@@ -399,18 +399,36 @@ class Signal():
     def plot_ts(self):
         plt, fig, ax = FB.display.matplot()
         # 有benchmark算超额，没有算绝对
-        mean_returns = self.result.groupby('date')[\
-            'returns' if type(self.benchmark)==type(None) else 'excess_returns'].mean() 
-        num_signals = self.result.groupby('date')['returns'].count()
+        factor = 'returns' if type(self.benchmark)==type(None) else 'excess_returns'
+        mean_returns = self.result.groupby('date')[factor].mean()
+        #cum_mean_returns = (self.result.groupby('date')[factor].sum().cumsum()/\
+        #                        self.result.groupby('date')[factor].count().cumsum()) 
+        num_signals = self.result.groupby('date')[factor].count()
+        cum_num_signals = self.result.groupby('date')[factor].count().cumsum()/\
+                            (self.result.groupby('date')[factor].count()/\
+                                self.result.groupby('date')[factor].count()).cumsum()
         l0 = ax.bar(mean_returns.index, mean_returns.values)
+        # 方便显示，按十倍作图
+        #l1, = ax.plot(10*cum_mean_returns, c='C0')
         ax1 = ax.twinx()
         l1 = ax1.bar(num_signals.index, num_signals.values, color='C7', alpha=0.3)
+        l2, = ax1.plot(cum_num_signals, color='C7')
 
-        plt.legend([l0, l1], ['平均收益' if type(self.benchmark)==type(None) else '平均超额',\
-                               '信号次数（右）'])
+        lab = '平均收益' if type(self.benchmark)==type(None) else '平均超额'
+        lab1 = '信号次数（右）'
+        plt.legend([l0, l1, l2], ['bar'+lab, 'bar'+lab1, '累计平均'+lab1])
         ax.set_ylabel('（万）')
         FB.post.check_output()
         plt.savefig('./output/ts.png')
+        plt.show()
+    def plot_net(self):
+        plt, fig, ax = FB.display.matplot()
+        l0, = ax.plot((self.result_hold.groupby('date').mean()+1).cumprod(), linewidth=2)
+        ax1 = ax.twinx()
+        l1, = ax1.plot(self.result_hold.groupby('date').count(), c='C1', alpha=0.3)
+        plt.legend([l0, l1], ['等权持有净值', '持有标的个数（右）'], loc='lower left')
+        FB.post.check_output()
+        plt.savefig('./output/net.png')
         plt.show()
 
 # 跟踪类，
