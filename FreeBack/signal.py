@@ -295,8 +295,10 @@ class Signal():
         col5.loc[2] = '赔率'
         col5.loc[3] = round(pmean/nmean, 1)
         col5.loc[4] = 'E ratio'
-        col5.loc[5] = round((self.result['maxr']/self.result['ATR']).mean()/\
-                            (self.result['maxd']/self.result['ATR']).mean(),2)
+        col5.loc[5] = round((self.result['maxr']/\
+                             self.result['ATR'].replace(0, np.nan)).mean()/\
+                            (self.result['maxd']/\
+                             self.result['ATR'].replace(0, np.nan)).mean(),2)
         col6 = pd.DataFrame(columns=['col6'])
         col7 = pd.DataFrame(columns=['col7'])
         df_details = pd.concat([col0, col1, col2, col3, \
