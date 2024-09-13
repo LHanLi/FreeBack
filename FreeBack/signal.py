@@ -424,6 +424,9 @@ class Signal():
     def plot_net(self):
         plt, fig, ax = FB.display.matplot()
         l0, = ax.plot((self.result_hold.groupby('date').mean()+1).cumprod(), linewidth=2)
+        if type(self.benchmark)!=type(None):
+            ax.plot((self.benchmark[\
+                self.result_hold.groupby('date').count().index[0]:]+1).cumprod(), c='C7')
         ax1 = ax.twinx()
         l1, = ax1.plot(self.result_hold.groupby('date').count(), c='C1', alpha=0.3)
         plt.legend([l0, l1], ['等权持有净值', '持有标的个数（右）'], loc='lower left')
