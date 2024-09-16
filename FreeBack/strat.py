@@ -145,11 +145,11 @@ class MetaStrat():
         net = self.get_interval(self.net)
         self.df_amount = self.df_amount.mul(list(net.values), axis=0)
         self.df_hold = self.df_hold.mul(list(net.values), axis=0)
-        # 交易金额
+        # 交易金额（注意不能直接用市值相减）
         delta_hold = self.df_hold-self.df_hold.shift().fillna(0)
         self.delta_amount = (delta_hold*self.df_price).fillna(0)
         # cash的变化不会带来换手，可能没有‘cash'列
-        self.df_turnover = abs(self.delta_amount.div(self.net, axis=0))
+        self.df_turnover = abs(self.delta_amount.div(self.df_amount.sum(axis=1), axis=0))
         if 'cash' in self.df_hold.columns:
             self.df_turnover['cash'] = 0
         self.turnover = self.df_turnover.sum(axis=1)
