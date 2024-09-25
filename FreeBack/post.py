@@ -123,7 +123,7 @@ class ReturnsPost():
             col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
             col1 = pd.DataFrame(columns=['col1'])
             col1.loc[0] = '总收益（%）'
-            col1.loc[1] = round(self.net*100-100, 1)
+            col1.loc[1] = round(self.net.iloc[-1]*100-100, 1)
             col1.loc[2] = '年化收益率（%）'
             col1.loc[3] = round(self.return_annual*100,1)
             col1.loc[4] = '年化超额收益率（%）'
