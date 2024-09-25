@@ -122,10 +122,12 @@ class ReturnsPost():
                 col0.loc[0] = '回测时间（年, 周）'
             col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
             col1 = pd.DataFrame(columns=['col1'])
-            col1.loc[0] = '年化收益率（%）'
-            col1.loc[1] = round(self.return_annual*100,1)
-            col1.loc[2] = '年化超额收益率（%）'
-            col1.loc[3] = round(self.excess_return_annual*100,1)
+            col1.loc[0] = '总收益（%）'
+            col1.loc[1] = round(self.net*100-100, 1)
+            col1.loc[2] = '年化收益率（%）'
+            col1.loc[3] = round(self.return_annual*100,1)
+            col1.loc[4] = '年化超额收益率（%）'
+            col1.loc[5] = round(self.excess_return_annual*100,1)
             col2 = pd.DataFrame(columns=['col2'])
             col2.loc[0] = '日胜率（%）'  # 没亏就是赢
             col2.loc[1] = round(100*(self.returns>=0).mean(),1)
@@ -495,12 +497,12 @@ class StratPost(ReturnsPost):
             temp = self.held.loc[date].sort_values(by='weight', ascending=False)
             iamount = 0
             for idx,val in temp.iterrows():
-                if ('name' in self.market.columns)&(type(self.market)!=type(None)):
-                    keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
-                        str(round(100*val['weight'], 2))+'%'+\
+                keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
                             ', 收益率：'+'%03d'%(1e4*val['contri'])
-                else:
-                    keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
+                if (type(self.market)!=type(None)):
+                    if ('name' in self.market.columns):
+                        keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
+                            str(round(100*val['weight'], 2))+'%'+\
                             ', 收益率：'+'%03d'%(1e4*val['contri'])
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
@@ -515,10 +517,11 @@ class StratPost(ReturnsPost):
         A2Z = [i for i in string.ascii_uppercase]
         excel_columns = A2Z + [i+j for i in A2Z for j in A2Z]
         # 第一列是日期，宽度15或30，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度12
-        if 'name' in self.market.columns:
-            col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
+        try:
+            if 'name' in self.market.columns:
+                col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
-        else:
+        except:
             col_width = {'A':20}|{excel_columns[1+i]:40 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
         FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:35})
