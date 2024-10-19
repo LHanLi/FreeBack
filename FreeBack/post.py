@@ -107,9 +107,9 @@ class ReturnsPost():
         y = self.returns.fillna(0)
         x = self.benchmark[self.benchmark.columns[0]].fillna(0)
         x = sm.add_constant(x)
-        model = sm.OLS(y, x).fit()
+        model = sm.OLS(y, x.values).fit()
         # 市场风险暴露
-        self.beta = model.params[self.benchmark.columns[0]]
+        self.beta = model.params['x1']
         # 市场波动无法解释的截距项
         self.alpha = model.params['const']
         #model.summary()
