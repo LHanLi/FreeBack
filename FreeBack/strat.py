@@ -80,11 +80,11 @@ class MetaStrat():
                 self.add_cash()
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 等权（总账户市值1块钱）
-        if type(self.hold_weight)==type(None): 
-            df_hold = (1/df_hold[self.price].unstack()).fillna(0)
+        df_hold = (1/df_hold[self.price].unstack()).fillna(0)
+        df_hold = df_hold.div((df_hold!=0).sum(axis=1), axis=0)
         # 赋权
-        else:
-            df_hold = ((self.hold_weight/df_hold[self.price]).dropna().unstack()).fillna(0)
+        if type(self.hold_weight)!=type(None): 
+            df_hold = self.hold_weight*df_hold
         self.df_hold = self.direct*df_hold
         #self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
