@@ -85,13 +85,13 @@ class ReturnsPost():
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
         self.return_total = self.net.iloc[-1]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
-        self.sigma = np.exp(self.lr.std())-1
+        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.anunal_num)
         # 一年多少个bar
         if self.freq == 'day':
             self.anunal_num = 250
         elif self.freq == 'week':
             self.anunal_num = 48
-        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(self.anunal_num))
+        self.sharpe = (self.return_annual - self.rf)/self.sigma
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
         # 超额表现
@@ -99,8 +99,8 @@ class ReturnsPost():
         self.excess_net = np.exp(self.excess_lr.cumsum())
         self.excess_total = self.excess_net.iloc[-1]/self.excess_net.iloc[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
-        self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = self.excess_return_annual/(self.excess_sigma*np.sqrt(self.anunal_num))
+        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.anunal_num)
+        self.excess_sharpe = self.excess_return_annual/self.excess_sigma
         a = np.maximum.accumulate(self.excess_net)
         self.excess_drawdown = (a-self.excess_net)/a
         # CAPM (无风险收益为0)
@@ -139,7 +139,7 @@ class ReturnsPost():
             col3.loc[2] = '超额最大回撤（%）'
             col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
             col3.loc[4] = '波动率（%）'
-            col3.loc[5] = round(self.sigma*np.sqrt(self.anunal_num)*100, 1)
+            col3.loc[5] = round(self.sigma*100, 1)
             col4 = pd.DataFrame(columns=['col4'])
             col4.loc[0] = 'beta系数'
             col4.loc[1] = round(self.beta,2)
@@ -569,11 +569,11 @@ class WorldPost():
         excess_total = np.exp(self.excess_lr.sum())
         self.excess_return_annual = excess_total**(1/self.years)-1
         # 年化波动率 shrpe
-        self.sigma = np.exp(self.lr.std())-1
-        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
+        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.anunal_num)
+        self.sharpe = (self.return_annual - self.rf)/self.sigma
         # 超额年化波动率 shrpe
-        self.excess_sigma = np.exp(self.excess_lr.std())-1
-        self.excess_sharpe = (self.excess_return_annual - self.rf)/(self.excess_sigma*np.sqrt(250))
+        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.anunal_num)
+        self.excess_sharpe = (self.excess_return_annual - self.rf)/self.excess_sigma
         # 回撤
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
@@ -662,7 +662,7 @@ class WorldPost():
         col3.loc[2] = '超额最大回撤（%）'
         col3.loc[3] = round(max(self.excess_drawdown)*100, 1)
         col3.loc[4] = '波动率（%）'
-        col3.loc[5] = round(self.sigma*np.sqrt(250)*100, 1)
+        col3.loc[5] = round(self.sigma*100, 1)
         col3.loc[6] = '基准波动率（%）'
         col3.loc[7] = round(self.sigma_benchmark*np.sqrt(250)*100, 1)
         col4 = pd.DataFrame(columns=['col4'])
