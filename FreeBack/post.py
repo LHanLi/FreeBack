@@ -41,6 +41,11 @@ class ReturnsPost():
             return
         else:
             self.freq = freq
+            # 一年多少个bar
+            if self.freq == 'day':
+                self.anunal_num = 250
+            elif self.freq == 'week':
+                self.anunal_num = 48
         # 无风险利率
         self.rf = rf
         # 基准指数
@@ -54,11 +59,6 @@ class ReturnsPost():
         self.cal_detail(show)
         if show:
             self.detail()
-        # 一年多少个bar
-        if self.freq == 'day':
-            self.anunal_num = 250
-        elif self.freq == 'week':
-            self.anunal_num = 48
     # 详细评价表
     def cal_detail(self, show=False):
         # 策略绝对表现
