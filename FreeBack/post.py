@@ -43,28 +43,6 @@ class ReturnsPost():
             self.freq = freq
         # 无风险利率
         self.rf = rf
-        #if fast:
-        #    # 策略绝对表现
-        #    self.bars = len(self.returns)  
-        #    self.net = (1+self.returns).cumprod()
-        #    self.lr = np.log(self.returns + 1)
-        #    self.return_total = self.net.iloc[-1]-1                    
-        #    self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
-        #    self.return_annual = (self.return_total+1)**(1/self.years)-1   
-        #    self.sigma = np.exp(self.lr.std())-1
-        #    if self.freq == 'day':
-        #        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(250))
-        #    elif self.freq == 'week':
-        #        self.sharpe = (self.return_annual - self.rf)/(self.sigma*np.sqrt(48))
-        #    a = np.maximum.accumulate(self.net)
-        #    self.drawdown = (a-self.net)/a
-        #    # 基准指数
-        #    if type(benchmark)==type(0):
-        #        benchmark = pd.DataFrame(index = self.returns.index)
-        #        benchmark['zero'] = 0
-        #        self.benchmark = benchmark
-        #    self.benchmark = benchmark.loc[self.returns.index].fillna(0)
-        #else: 
         # 基准指数
         if type(benchmark)==type(0):
             benchmark = pd.DataFrame(index = self.returns.index)
@@ -76,6 +54,11 @@ class ReturnsPost():
         self.cal_detail(show)
         if show:
             self.detail()
+        # 一年多少个bar
+        if self.freq == 'day':
+            self.anunal_num = 250
+        elif self.freq == 'week':
+            self.anunal_num = 48
     # 详细评价表
     def cal_detail(self, show=False):
         # 策略绝对表现
@@ -86,11 +69,6 @@ class ReturnsPost():
         self.return_total = self.net.iloc[-1]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
         self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.anunal_num)
-        # 一年多少个bar
-        if self.freq == 'day':
-            self.anunal_num = 250
-        elif self.freq == 'week':
-            self.anunal_num = 48
         self.sharpe = (self.return_annual - self.rf)/self.sigma
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
