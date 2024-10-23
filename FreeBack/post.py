@@ -43,9 +43,9 @@ class ReturnsPost():
             self.freq = freq
             # 一年多少个bar
             if self.freq == 'day':
-                self.anunal_num = 250
+                self.annual_num = 250
             elif self.freq == 'week':
-                self.anunal_num = 48
+                self.annual_num = 48
         # 无风险利率
         self.rf = rf
         # 基准指数
@@ -68,7 +68,7 @@ class ReturnsPost():
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
         self.return_total = self.net.iloc[-1]-1                    
         self.return_annual = (self.return_total+1)**(1/self.years)-1   
-        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.anunal_num)
+        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.annual_num)
         self.sharpe = (self.return_annual - self.rf)/self.sigma
         a = np.maximum.accumulate(self.net)
         self.drawdown = (a-self.net)/a
@@ -77,7 +77,7 @@ class ReturnsPost():
         self.excess_net = np.exp(self.excess_lr.cumsum())
         self.excess_total = self.excess_net.iloc[-1]/self.excess_net.iloc[0]
         self.excess_return_annual = self.excess_total**(1/self.years)-1
-        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.anunal_num)
+        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.annual_num)
         self.excess_sharpe = self.excess_return_annual/self.excess_sigma
         a = np.maximum.accumulate(self.excess_net)
         self.excess_drawdown = (a-self.excess_net)/a
@@ -122,7 +122,7 @@ class ReturnsPost():
             col4.loc[0] = 'beta系数'
             col4.loc[1] = round(self.beta,2)
             col4.loc[2] = 'alpha（%）'
-            col4.loc[3] = round(self.alpha*self.anunal_num*100,1)
+            col4.loc[3] = round(self.alpha*self.annual_num*100,1)
             col5 = pd.DataFrame(columns=['col5'])
             col5.loc[0] = '夏普比率'
             col5.loc[1] = round(self.sharpe,2)
@@ -253,18 +253,18 @@ class ReturnsPost():
     def rolling_return(self, key='return'):
         plt, fig, ax = FB.display.matplot()
         if key=='return':
-            ax.plot((self.net/self.net.shift(self.anunal_num//2)-1)*100, c='C0', label='滚动半年收益')
+            ax.plot((self.net/self.net.shift(self.annual_num//2)-1)*100, c='C0', label='滚动半年收益')
             ax2 = ax.twinx()
-            ax2.plot((self.net/self.net.shift(self.anunal_num)-1)*100, c='C3', label='滚动年度收益')
+            ax2.plot((self.net/self.net.shift(self.annual_num)-1)*100, c='C3', label='滚动年度收益')
             ax.legend(loc='upper left')
             ax2.legend(loc='upper right')
             ax.set_ylabel('(%)')
             ax2.set_ylabel('(%)')
         elif key=='sharpe':
-            halfyearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num//2).mean()*self.anunal_num)-1)/\
-            ((np.exp(self.lr.rolling(self.anunal_num//2).std())-1)*np.sqrt(self.anunal_num))
-            yearly_sharpe = (np.exp(self.lr.rolling(self.anunal_num).mean()*self.anunal_num)-1)/\
-            ((np.exp(self.lr.rolling(self.anunal_num).std())-1)*np.sqrt(self.anunal_num))
+            halfyearly_sharpe = (np.exp(self.lr.rolling(self.annual_num//2).mean()*self.annual_num)-1)/\
+            ((np.exp(self.lr.rolling(self.annual_num//2).std())-1)*np.sqrt(self.annual_num))
+            yearly_sharpe = (np.exp(self.lr.rolling(self.annual_num).mean()*self.annual_num)-1)/\
+            ((np.exp(self.lr.rolling(self.annual_num).std())-1)*np.sqrt(self.annual_num))
             ax.plot(halfyearly_sharpe, c='C0', label='滚动半年sharpe')
             ax2 = ax.twinx()
             ax2.plot(yearly_sharpe, c='C3', label='滚动年度sharpe')
@@ -547,10 +547,10 @@ class WorldPost():
         excess_total = np.exp(self.excess_lr.sum())
         self.excess_return_annual = excess_total**(1/self.years)-1
         # 年化波动率 shrpe
-        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.anunal_num)
+        self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.annual_num)
         self.sharpe = (self.return_annual - self.rf)/self.sigma
         # 超额年化波动率 shrpe
-        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.anunal_num)
+        self.excess_sigma = (np.exp(self.excess_lr.std())-1)*np.sqrt(self.annual_num)
         self.excess_sharpe = (self.excess_return_annual - self.rf)/self.excess_sigma
         # 回撤
         a = np.maximum.accumulate(self.net)
