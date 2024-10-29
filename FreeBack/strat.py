@@ -21,6 +21,7 @@ class MetaStrat():
     # 'score':float,   按score列由大到小选取证券,等权持有
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
+    # hold_weight 权重 multiindex
     # price，当前日期可以获得的价格数据,可以使用 'close'收盘价（有一点未来信息），或者下根bar开盘价/TWAP/VWAP
     def __init__(self, market, inexclude=None, score=None, hold_num=None,\
                             price='close', interval=1, direct=1, hold_weight=None):
@@ -57,6 +58,7 @@ class MetaStrat():
             # 记录选中顺序
             self.keeppool_rank = pd.Series(index=df_hold.index)
         elif self.inexclude==None:
+            #print('inexclude None')
             df_hold = self.market 
             self.keeppool_rank = pd.Series(index=df_hold.index)
         # 按排除、排序规则持股，避免持有退市前最后一天股票
@@ -83,8 +85,9 @@ class MetaStrat():
         df_hold = (1/df_hold[self.price].unstack()).fillna(0)
         df_hold = df_hold.div((df_hold!=0).sum(axis=1), axis=0)
         # 赋权
-        if type(self.hold_weight)!=type(None): 
-            df_hold = self.hold_weight*df_hold
+        if type(self.hold_weight)!=type(None):
+            df_hold = (self.hold_weight*df_hold.stack()).dropna().unstack() 
+            #df_hold = self.hold_weight*df_hold
         self.df_hold = self.direct*df_hold
         #self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
