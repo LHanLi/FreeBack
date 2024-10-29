@@ -87,11 +87,6 @@ class MetaStrat():
         else:
             w_ = 1
         df_hold = ((w_/df_hold[self.price]).dropna().unstack()).fillna(0)
-        ## 等权（总账户市值1块钱）
-        #else:
-        #    df_hold = (1/df_hold[self.price].unstack()).fillna(0)
-            #df_hold = (self.hold_weight*df_hold.stack()).dropna().unstack() 
-            #df_hold = self.hold_weight*df_hold
         # 总账户市值1块钱
         df_hold = df_hold.div((df_hold!=0).sum(axis=1), axis=0)
         self.df_hold = self.direct*df_hold
