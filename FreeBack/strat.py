@@ -14,7 +14,7 @@ import time
 # 择股策略、元策略
 class MetaStrat():
     # 'inexclude':,
-        # False,  不排除
+        # None,  不排除
         # 'include'， 'include'列为bool值，为True为符合条件的证券
         # 'exclude'  'exclude列为bool值, 为True为排除的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
