@@ -86,7 +86,8 @@ class MetaStrat():
         df_hold = df_hold.div((df_hold!=0).sum(axis=1), axis=0)
         # 赋权
         if type(self.hold_weight)!=type(None):
-            df_hold = (self.hold_weight*df_hold.stack()).dropna().unstack() 
+            df_hold = ((self.hold_weight/df_hold[self.price]).dropna().unstack()).fillna(0)
+            #df_hold = (self.hold_weight*df_hold.stack()).dropna().unstack() 
             #df_hold = self.hold_weight*df_hold
         self.df_hold = self.direct*df_hold
         #self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
