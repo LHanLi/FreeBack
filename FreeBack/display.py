@@ -14,7 +14,7 @@ import datetime, xlsxwriter
 
 
 # matplot绘图
-def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7):
+def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7, hspace=0.3, wspace=0.2):
     # don't use sns style
     sns.reset_orig()
     #plot
@@ -37,7 +37,7 @@ def matplot(r=1, c=1, sharex=False, sharey=False, w=13, d=7):
         
     #subplot
     fig,ax = plt.subplots(r,c,sharex=sharex, sharey=sharey,figsize=(w,d))
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, hspace = None, wspace=0.5)
+    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, hspace = hspace, wspace=wspace)
         
     plt.gcf().autofmt_xdate()
 
