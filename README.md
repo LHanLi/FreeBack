@@ -32,3 +32,9 @@ backtest，stock, option, future，factor investing, portfiolio analyis
             python setup.py develop
 
 # ----------------------Hello world-----------------------
+
+
+# -------------------- 联系作者 ---------------------
+对于回测框架难以满足的个性化回测需求，可以联系作者。
+![cde0c826807b3836377d0e13cf4bbf4](https://github.com/user-attachments/assets/3954cec9-8d4e-481c-a014-2ec971ab7cb4)
+
