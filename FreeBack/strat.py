@@ -21,10 +21,10 @@ class MetaStrat():
     # 'score':float,   按score列由大到小选取证券,等权持有
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
-    # hold_weight 权重 multiindex
     # price，当前日期可以获得的价格数据,可以使用 'close'收盘价（有一点未来信息），或者下根bar开盘价/TWAP/VWAP
+    # hold_weight 权重, code_returns 标的收益(不一定是close2close),   MultiIndex, Seires
     def __init__(self, market, inexclude=None, score=None, hold_num=None,\
-                            price='close', interval=1, direct=1, hold_weight=None):
+                            price='close', interval=1, direct=1, hold_weight=None, code_returns=None):
         self.inexclude = inexclude
         self.score = score
         self.hold_num = hold_num
@@ -37,6 +37,7 @@ class MetaStrat():
         self.interval = interval
         self.direct = direct
         self.hold_weight = hold_weight
+        self.code_returns = code_returns
     # 为market添加cash品种
     def add_cash(self):
         cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
@@ -139,8 +140,11 @@ class MetaStrat():
         self.df_weight = (self.df_amount.apply(lambda x:\
                                         (x/abs(x.sum())).fillna(0), axis=1))
         # 净值贡献矩阵
-        returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
-        self.df_contri = (self.df_weight.shift()*returns).fillna(0)
+        if type(self.code_returns)==type(None):
+            self.code_returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
+        else:
+            self.code_returns = self.code_returns.unstack().fillna(0)[self.df_price.columns]
+        self.df_contri = (self.df_weight.shift()*self.code_returns).fillna(0)
         self.returns = self.df_contri.sum(axis=1)
         self.net = (self.returns+1).cumprod()
         #print('获取净值耗时', time.time()-time0)
