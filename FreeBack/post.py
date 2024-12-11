@@ -67,7 +67,7 @@ class ReturnsPost():
         self.bars = len(self.returns)  
         self.years = (self.returns.index[-1]-self.returns.index[0]).days/365  
         self.return_total = self.net.iloc[-1]-1                    
-        self.return_annual = (self.return_total+1)**(1/self.years)-1   
+        self.return_annual = (self.return_total+1)**(self.annual_num/self.bars)-1   
         self.sigma = (np.exp(self.lr.std())-1)*np.sqrt(self.annual_num)
         self.sharpe = (self.return_annual - self.rf)/self.sigma
         a = np.maximum.accumulate(self.net)
