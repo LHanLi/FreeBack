@@ -462,12 +462,9 @@ class StratPost(ReturnsPost):
                          rename(columns={0:'contri'})).fillna(0).\
                             loc[self.keeppool_rank.index]
         # 是否加入持仓品种名称
-        try:
-            if 'name' in self.market.columns:
-                held = held.join(self.market['name'])
-                held.loc[held.index[held.index.get_level_values(1)=='cash'], 'name'] = '现金'
-        except:
-            pass
+        if 'name' in self.market.columns:
+            held = held.join(self.market['name'])
+            held.loc[held.index[held.index.get_level_values(1)=='cash'], 'name'] = '现金'
         self.held = held
         # 持仓表(名称，代码，持仓量，持仓占比)
         result_hold = pd.DataFrame()
@@ -495,11 +492,10 @@ class StratPost(ReturnsPost):
         A2Z = [i for i in string.ascii_uppercase]
         excel_columns = A2Z + [i+j for i in A2Z for j in A2Z]
         # 第一列是日期，宽度15或30，第二列到倒数第三列为持仓股票，宽度15或30，倒数两列为收益率和换手率，宽度12
-        try:
-            if 'name' in self.market.columns:
-                col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
+        if 'name' in self.market.columns:
+            col_width = {'A':20}|{excel_columns[1+i]:30 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
-        except:
+        else:
             col_width = {'A':20}|{excel_columns[1+i]:40 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
         FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:35})
