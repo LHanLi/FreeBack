@@ -46,6 +46,7 @@ class MetaStrat():
         cash[self.price] = 1
         cash = cash.reset_index().set_index(['date', 'code'])
         self.market = pd.concat([self.market, cash]).sort_values('date')
+        self.code_returns = pd.concat([self.code_returns, ])
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
         #if self.inexclude==False:
