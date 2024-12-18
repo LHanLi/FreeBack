@@ -45,8 +45,9 @@ class MetaStrat():
         cash['name'] = '现金'
         cash[self.price] = 1
         cash = cash.reset_index().set_index(['date', 'code'])
-        self.market = pd.concat([self.market, cash]).sort_values('date')
-        self.code_returns = pd.concat([self.code_returns, ])
+        self.market = pd.concat([self.market, cash]).sort_index()
+        cash['returns'] = 0
+        self.code_returns = pd.concat([self.code_returns, cash['returns']]).sort_index()
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
         #if self.inexclude==False:
@@ -129,7 +130,7 @@ class MetaStrat():
         #   always_not_hold = (df_hold==0).all()
         #    self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
         # 判断cash是否在持仓，如果在的话避免price没有cash列
-        if 'cash' in self.df_hold.columns:
+        if ('cash' in self.df_hold.columns)&('cash' not in self.market.index.get_level_values(1)):
             self.add_cash()
         # 价格矩阵，去掉没有持仓过的标的，缺失价格数据（nan）的日期
         df_price = pd.DataFrame(self.market[self.price]).\
