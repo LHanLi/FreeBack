@@ -47,7 +47,8 @@ class MetaStrat():
         cash = cash.reset_index().set_index(['date', 'code'])
         self.market = pd.concat([self.market, cash]).sort_index()
         cash['returns'] = 0
-        self.code_returns = pd.concat([self.code_returns, cash['returns']]).sort_index()
+        if self.code_returns!=None:
+            self.code_returns = pd.concat([self.code_returns, cash['returns']]).sort_index()
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
         #if self.inexclude==False:
@@ -173,7 +174,7 @@ class MetaStrat():
 # conds = [满足条件0的交易日（index或lsit），满足条件1的交易日, ..., 满足条件n的交易日]
 # strats =[条件0对应策略0（MetaStrat）,   非条件0且条件1对应策略1, ... , 非条件0到条件n-1且条件n对应策略n， 剩余时间执行策略n+1]
 class ComboStrat(MetaStrat):
-    def __init__(self, conds, strats, market, price='close', interval=1):
+    def __init__(self, conds, strats, market, price='close', code_returns=None, interval=1):
         self.conds = conds
         self.strats = strats
         # 如果状态数和策略数相同，呢么默认空余状态使用最后一个策略
@@ -181,6 +182,7 @@ class ComboStrat(MetaStrat):
             self.strats.append(strats[-1])
         self.market = market
         self.price = price
+        self.code_returns = code_returns
         self.interval = interval
     def get_hold(self):
         # 策略择时模块,将全部交易日按择时条件划分
