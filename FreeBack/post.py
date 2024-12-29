@@ -510,9 +510,9 @@ class StratPost(ReturnsPost):
         monthlycode_contri = self.df_contri.stack().reset_index()
         monthlycode_contri['month'] = monthlycode_contri['date'].map(lambda x: str(x.year)+','+str(x.month))
         monthlycode_contri['contri'] = monthlycode_contri[0]+1            # 对净值贡献
-        monthlycode_contri['pct'] = ((self.df_weight.shift()!=0)*\
+        monthlycode_contri['chg'] = ((self.df_weight.shift()!=0)*\
                             self.code_returns).stack().reset_index()[0]+1 # 持有期间股价变动/满仓收益
-        monthlycode_contri = monthlycode_contri.groupby(['month', 'code'])[['contri', 'pct']].prod()-1
+        monthlycode_contri = monthlycode_contri.groupby(['month', 'code'])[['contri', 'chg']].prod()-1
         monthlycode_contri = monthlycode_contri[monthlycode_contri['contri']!=0]
         self.code_contri = monthlycode_contri.reset_index().sort_values(by=['month', 'contri'], \
                                                         ascending=False).set_index(['month', 'code'])
