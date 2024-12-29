@@ -425,7 +425,8 @@ class StratPost(ReturnsPost):
         self.turnover = strat0.turnover
         self.df_turnover = strat0.df_turnover 
         self.df_weight = strat0.df_weight
-        self.keeppool_rank = strat0.keeppool_rank  
+        self.keeppool_rank = strat0.keeppool_rank 
+        self.code_returns = strat0.code_returns 
         self.df_contri = (1+strat0.df_contri)*(1-strat0.df_turnover*comm)-1
         super().__init__((1+strat0.returns)*(1-self.turnover*comm)-1,\
                                 benchmark=benchmark, stratname=stratname,\
@@ -504,7 +505,17 @@ class StratPost(ReturnsPost):
             col_width = {'A':20}|{excel_columns[1+i]:40 for i in range(len(self.result_hold.columns)-2)}|\
                                 {excel_columns[len(self.result_hold.columns)-1+i]:8 for i in range(2)}
         FB.display.write_df(self.result_hold , "./output/持仓表", col_width=col_width, row_width={0:35})
-
+    # 每月收益标的归因
+    def get_contri(self):
+        monthlycode_contri = self.df_contri.stack().reset_index()
+        monthlycode_contri['month'] = monthlycode_contri['date'].map(lambda x: str(x.year)+','+str(x.month))
+        monthlycode_contri['contri'] = monthlycode_contri[0]+1            # 对净值贡献
+        monthlycode_contri['pct'] = ((self.df_weight.shift()!=0)*\
+                            self.code_returns).stack().reset_index()[0]+1 # 持有期间股价变动/满仓收益
+        monthlycode_contri = monthlycode_contri.groupby(['month', 'code'])[['contri', 'pct']].prod()-1
+        monthlycode_contri = monthlycode_contri[monthlycode_contri['contri']!=0]
+        self.code_contri = monthlycode_contri.reset_index().sort_values(by=['month', 'contri'], \
+                                                        ascending=False).set_index(['month', 'code'])
 
 
 ########################################################################################################
