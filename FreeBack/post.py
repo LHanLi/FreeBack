@@ -95,9 +95,9 @@ class ReturnsPost():
         if show:
             col0 = pd.DataFrame(columns=['col0'])
             if self.freq == 'day':
-                col0.loc[0] = '回测时间（年, 日）'
+                col0.loc[0] = '策略时间（年, 日）'
             elif self.freq == 'week':
-                col0.loc[0] = '回测时间（年, 周）'
+                col0.loc[0] = '策略时间（年, 周）'
             col0.loc[1] = '%s, %s'%(round(self.years,1), len(self.net))
             col1 = pd.DataFrame(columns=['col1'])
             col1.loc[0] = '总收益（%）'
