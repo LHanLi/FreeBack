@@ -524,13 +524,24 @@ class StratPost(ReturnsPost):
 # 传入barbybar运行完毕的world对象
 class WorldPost():
     # benchmark为收益率（非对数收益率）
-    def __init__(self, world, benchmark=None, stratname='策略'):
+    def __init__(self, world, benchmark=None, stratname='策略', freq='day'):
         # world
         self.world = world
         # 策略名
         self.stratname = stratname
         # 无风险利率
         self.rf = riskfreerate
+        # 数据频率
+        if freq not in ['day', 'week']:
+            print('输入频率错误')
+            return
+        else:
+            self.freq = freq
+            # 一年多少个bar
+            if self.freq == 'day':
+                self.annual_num = 250
+            elif self.freq == 'week':
+                self.annual_num = 48
         # 基准
         if type(benchmark) == type(None):
             benchmark = pd.DataFrame(index = world.series_net.index)
