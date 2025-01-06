@@ -53,7 +53,7 @@ class ReturnsPost():
             benchmark = pd.DataFrame(index = self.returns.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
-        self.benchmark = benchmark.loc[self.returns.index].fillna(0)
+        self.benchmark = benchmark.reindex(self.returns.index, fill_value=0).fillna(0)
         self.sigma_benchmark = np.exp(np.log(self.benchmark[\
             self.benchmark.columns[0]]+1).std())-1
         self.cal_detail(show)
