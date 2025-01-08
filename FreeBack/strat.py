@@ -22,7 +22,7 @@ class MetaStrat():
     # 'hold_num':float,    取前hold_num（大于1表示数量，小于1小于百分比）只
     # market，pd.DataFrame, 需要包括策略需要调取的列，可以先不加
     # price，当前日期可以获得的价格数据,可以使用 'close'收盘价（有一点未来信息），或者下根bar开盘价/TWAP/VWAP
-    # hold_weight 权重, code_returns 标的收益(不一定是close2close),   MultiIndex, Seires
+    # hold_weight 权重, code_returns 标的收益(T-1日持有标的的收益),   MultiIndex, Seires
     def __init__(self, market, inexclude=None, score=None, hold_num=None,\
                             price='close', interval=1, direct=1, hold_weight=None, code_returns=None):
         self.inexclude = inexclude
