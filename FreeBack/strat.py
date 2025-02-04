@@ -233,8 +233,11 @@ class MixStrat(MetaStrat):
         self.strats = strats
     def get_hold(self):
         from functools import reduce
-        self.df_hold =reduce(lambda x, y: x.add(y, fill_value=0), \
-                      [w*s.df_hold for w,s in zip(self.weights, self.strats)])
+        # 虚拟货值矩阵 按权重分配
+        df_amount =reduce(lambda x, y: x.add(y, fill_value=0), \
+                      [w*s.df_amount for w,s in zip(self.weights, self.strats)])
+        df_price = pd.DataFrame(self.market[self.price]).pivot_table(self.price, 'date' ,'code')
+        self.df_hold = (df_amount/df_price).fillna(0)
         self.keeppool_rank = reduce(lambda x, y: x.add(y, fill_value=0), \
                             [w*s.keeppool_rank for w,s in zip(self.weights, self.strats)])
 
