@@ -169,7 +169,6 @@ class MetaStrat():
 
 
 
-# 组合策略、择时策略
 # 根据择时条件选择陪着不同的择股策略
 # conds = [满足条件0的交易日（index或lsit），满足条件1的交易日, ..., 满足条件n的交易日]
 # strats =[条件0对应策略0（MetaStrat）,   非条件0且条件1对应策略1, ... , 非条件0到条件n-1且条件n对应策略n， 剩余时间执行策略n+1]
@@ -225,9 +224,18 @@ class ComboStrat(MetaStrat):
 
 
 
-
-
-
-
+# 根据权重组合不同的MetaStrat
+class MixStrat(MetaStrat):
+    def __init__(self, weights, strats, market, inexclude=None, score=None, hold_num=None, \
+                 price='close', interval=1, direct=1, hold_weight=None, code_returns=None):
+        super().__init__(market, inexclude, score, hold_num, price, interval, direct, hold_weight, code_returns)
+        self.weights = weights
+        self.strats = strats
+    def get_hold(self):
+        from functools import reduce
+        self.df_hold =reduce(lambda x, y: x.add(y, fill_value=0), \
+                      [w*s.df_hold for w,s in zip(self.weights, self.strats)])
+        self.keeppool_rank = reduce(lambda x, y: x.add(y, fill_value=0), \
+                            [w*s.keeppool_rank for w,s in zip(self.weights, self.strats)])
 
 
