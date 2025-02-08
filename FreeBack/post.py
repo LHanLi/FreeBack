@@ -31,7 +31,7 @@ class ReturnsPost():
     # returns,简单收益率序列  type:pd.Series index:pd.DatetimeIndex 
     # benchmark,基准收益率序列（可以多个） pd.DataFrame index:pd.DatetimeIndex, 0表示不设基准
     # show 是否绘制表格 
-    def __init__(self, returns, benchmark=0, stratname='策略', freq='day',\
+    def __init__(self, returns, benchmark=None, stratname='策略', freq='day',\
                   rf=riskfreerate, show=True):
         self.stratname = stratname
         self.returns = returns.fillna(0)
@@ -49,7 +49,7 @@ class ReturnsPost():
         # 无风险利率
         self.rf = rf
         # 基准指数
-        if type(benchmark)==type(0):
+        if type(benchmark)==type(None):
             benchmark = pd.DataFrame(index = self.returns.index)
             benchmark['zero'] = 0
             self.benchmark = benchmark
@@ -195,7 +195,7 @@ class ReturnsPost():
                 ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
             ax.plot(net/net[0], c='C0', label='p&l')
             # 如果基准是0就不绘制了
-            if not (self.benchmark==0).all().values[0]:
+            if not type(self.benchmark)==type(None):
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
                 benchmark.loc[self.net.index[0]] = 0
