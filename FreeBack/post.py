@@ -475,12 +475,12 @@ class StratPost(ReturnsPost):
             iamount = 0
             for idx,val in temp.iterrows():
                 keystring = str(idx) + ', 仓位：'+str(round(100*val['weight'], 2))+'%'+\
-                            ', 下期收益率：'+'%03d'%(1e4*val['contri'])
+                            ', 下期收益率：'+'%03d'%(1e4*val['contri']/val['weight'])
                 if (type(self.market)!=type(None)):
                     if ('name' in self.market.columns):
                         keystring = val['name']+'('+str(idx)+')'+ ', 仓位：'+\
                             str(round(100*val['weight'], 2))+'%'+\
-                            ', 下期收益率：'+'%03d'%(1e4*val['contri'])
+                            ', 下期收益率：'+'%03d'%(1e4*val['contri']/val['weight'])
                 result_hold.loc[date, 'hold%s'%iamount] = keystring
                 iamount += 1
         result_hold = result_hold.join(pd.DataFrame(10000*self.returns).\
