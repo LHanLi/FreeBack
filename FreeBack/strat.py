@@ -9,6 +9,27 @@ import time
 ########################## 常用策略框架 ##############################
 ###################################################################
 
+# 修正冻结交易日（停牌、涨跌停等）的returns,market
+def frozen_correct(code_returns, market, frozen_days):
+    # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
+    code_returns = code_returns.reindex(market.index).fillna(0) # 收益对齐至market
+    frozen_days_start = (frozen_days&(frozen_days!=frozen_days.groupby('code').shift(1)))\
+                            .map(lambda x: 1 if x else 0)  # 第一个冻结交易日标为1
+    frozen_days_end = (frozen_days&(frozen_days!=frozen_days.groupby('code').shift(-1)))\
+                .groupby('code').shift(2).fillna(0).map(lambda x: -1 if x else 0)   # 冻结结束后第二个交易日标为-1
+    frozen_days_labels = (frozen_days_start+frozen_days_end).groupby('code').cumsum()  
+    frozen_days_labels = frozen_days_labels[frozen_days_labels!=0]
+    frozen_days_labels = pd.Series(frozen_days_labels.index.get_level_values(1), \
+                index=frozen_days_labels.index)+frozen_days_labels.astype(str)               # 每一个冻结区块有唯一值
+    #code_returns_frozen = np.exp(np.log(1+code_returns).groupby(frozen_days_labels).sum())-1  # 计算冻结交易日的收益率
+    code_returns_frozen = (1+code_returns).groupby(frozen_days_labels).prod()-1  # 计算冻结交易日的收益率
+    code_returns_frozen = code_returns_frozen.reset_index().merge(\
+        frozen_days_labels.loc[frozen_days_start[frozen_days_start==1].index]\
+           .reset_index().rename(columns={0:'index'}), on='index')\
+            .set_index(['date', 'code'])[0].sort_index()         # 收益率对齐到冻结首日
+    code_returns_frozen = code_returns_frozen.reindex(frozen_days_labels.index).fillna(0)  # 其后冻结日收益为0
+    code_returns.loc[code_returns_frozen.index] = code_returns_frozen # 修正code_returns
+    return code_returns, market[~frozen_days]
 
 
 # 择股策略、元策略
