@@ -10,18 +10,54 @@ import time
 ###################################################################
 
 # 修正冻结交易日（停牌、涨跌停等）的returns,market
-def frozen_correct(code_returns, market, frozen_days):
+def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None):
     # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
     code_returns = code_returns.reindex(market.index).fillna(0) # 收益对齐至market
-    frozen_days_start = (frozen_days&(frozen_days!=frozen_days.groupby('code').shift(1)))\
-                            .map(lambda x: 1 if x else 0)  # 第一个冻结交易日标为1
-    frozen_days_end = (frozen_days&(frozen_days!=frozen_days.groupby('code').shift(-1)))\
-                .groupby('code').shift(2).fillna(0).map(lambda x: -1 if x else 0)   # 冻结结束后第二个交易日标为-1
-    frozen_days_labels = (frozen_days_start+frozen_days_end).groupby('code').cumsum()  
-    frozen_days_labels = frozen_days_labels[frozen_days_labels!=0]
+    #if type(sell_frozen_days)==type(None):
+    #    frozen_days_start = (buy_frozen_days&(buy_frozen_days!=buy_frozen_days.groupby('code').shift(1)))\
+    #                            .map(lambda x: 1 if x else 0)  # 第一个冻结交易日标为1
+    #    frozen_days_end = (buy_frozen_days&(buy_frozen_days!=buy_frozen_days.groupby('code').shift(-1)))\
+    #                .groupby('code').shift(2).fillna(0).map(lambda x: -1 if x else 0)   # 冻结结束后第二个交易日标为-1
+    #    frozen_days_labels = (frozen_days_start+frozen_days_end).groupby('code').cumsum()  # !!! 并行算法有误已弃用 !!! 
+    #else:
+    if type(sell_frozen_days)==type(None):
+        sell_frozen_days = buy_frozen_days
+    from numba import njit
+    @njit
+    def compute_freeze_blocks(buy_arr, sell_arr):
+        freeze = np.zeros(buy_arr.shape[0], dtype=np.int32)
+        block = 0
+        is_frozen = False
+        for i in range(len(freeze)):
+            # 如果当天买入信号为 True 或者前一天已冻结，则当天属于冻结状态
+            if buy_arr[i] or is_frozen:
+                if not is_frozen:
+                    block += 1  # 启动新冻结区间
+                is_frozen = True
+                freeze[i] = block
+            else:
+                freeze[i] = 0 
+            # 如果处于冻结状态，且当天卖出信号为 False，则冻结状态在当天结束（当天仍归入该区间），下一天不再冻结
+            if is_frozen and (not sell_arr[i]):
+                is_frozen = False
+        return freeze
+    def process_series(buy_series, sell_series):
+        # 转为 numpy array
+        res = compute_freeze_blocks(buy_series.values, sell_series.values)
+        return pd.Series(res, index=buy_series.index)
+    frozen_days_labels = []
+    for code in buy_frozen_days.index.get_level_values(1).unique():
+        res = process_series(buy_frozen_days.loc[:, code, :], sell_frozen_days.loc[:, code, :])
+        res = res.reset_index()
+        res['code'] = code
+        res = res.set_index(['date', 'code'])[0]
+        frozen_days_labels.append(res)
+    frozen_days_labels = pd.concat(frozen_days_labels).sort_index()
+    frozen_days_start = (frozen_days_labels!=0)&(frozen_days_labels!=frozen_days_labels.groupby('code').shift())
+    frozen_days_start = frozen_days_start.map(lambda x: 1 if x else 0)
+    frozen_days_labels = frozen_days_labels[frozen_days_labels>0]
     frozen_days_labels = pd.Series(frozen_days_labels.index.get_level_values(1), \
                 index=frozen_days_labels.index)+frozen_days_labels.astype(str)               # 每一个冻结区块有唯一值
-    #code_returns_frozen = np.exp(np.log(1+code_returns).groupby(frozen_days_labels).sum())-1  # 计算冻结交易日的收益率
     code_returns_frozen = (1+code_returns).groupby(frozen_days_labels).prod()-1  # 计算冻结交易日的收益率
     code_returns_frozen = code_returns_frozen.reset_index().merge(\
         frozen_days_labels.loc[frozen_days_start[frozen_days_start==1].index]\
@@ -29,7 +65,7 @@ def frozen_correct(code_returns, market, frozen_days):
             .set_index(['date', 'code'])[0].sort_index()         # 收益率对齐到冻结首日
     code_returns_frozen = code_returns_frozen.reindex(frozen_days_labels.index).fillna(0)  # 其后冻结日收益为0
     code_returns.loc[code_returns_frozen.index] = code_returns_frozen # 修正code_returns
-    return code_returns, market[~frozen_days]
+    return code_returns, market[~buy_frozen_days]
 
 
 # 择股策略、元策略
