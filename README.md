@@ -23,6 +23,7 @@ backtest，stock, option, future，factor investing, portfiolio analyis
 # -----------------------INSTALL-------------------------
 从pypi安装:
 
+            pip install numpy==1.26.4
             pip install FreeBack
 
 从github安装： 
