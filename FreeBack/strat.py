@@ -94,7 +94,7 @@ class MetaStrat():
         self.interval = interval
         self.direct = direct
         self.hold_weight = hold_weight
-        self.code_returns = code_returns
+        self.code_returns = code_returns.loc[market.index[0][0]:market.index[-1][0]]
     # 为market添加cash品种
     def add_cash(self):
         cash = pd.DataFrame(index=self.market.index.get_level_values(0).unique())
