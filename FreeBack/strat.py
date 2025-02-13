@@ -8,7 +8,7 @@ import time
 ####################################################################
 ########################## 常用策略框架 ##############################
 ###################################################################
-'''
+
 # 修正冻结交易日（停牌、涨跌停等）的returns,market
 def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None):
     # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
@@ -66,7 +66,7 @@ def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None)
     code_returns_frozen = code_returns_frozen.reindex(frozen_days_labels.index).fillna(0)  # 其后冻结日收益为0
     code_returns.loc[code_returns_frozen.index] = code_returns_frozen # 修正code_returns
     return code_returns, market[~buy_frozen_days]
-'''
+
 
 # 择股策略、元策略
 class MetaStrat():
