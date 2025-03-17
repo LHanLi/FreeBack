@@ -13,13 +13,6 @@ import time
 def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None):
     # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
     code_returns = code_returns.reindex(market.index).fillna(0) # 收益对齐至market
-    #if type(sell_frozen_days)==type(None):
-    #    frozen_days_start = (buy_frozen_days&(buy_frozen_days!=buy_frozen_days.groupby('code').shift(1)))\
-    #                            .map(lambda x: 1 if x else 0)  # 第一个冻结交易日标为1
-    #    frozen_days_end = (buy_frozen_days&(buy_frozen_days!=buy_frozen_days.groupby('code').shift(-1)))\
-    #                .groupby('code').shift(2).fillna(0).map(lambda x: -1 if x else 0)   # 冻结结束后第二个交易日标为-1
-    #    frozen_days_labels = (frozen_days_start+frozen_days_end).groupby('code').cumsum()  # !!! 并行算法有误已弃用 !!! 
-    #else:
     if type(sell_frozen_days)==type(None):
         sell_frozen_days = buy_frozen_days
     from numba import njit
