@@ -11,6 +11,10 @@ import time
 
 # 修正冻结交易日（停牌、涨跌停等）的returns,market
 def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None):
+    if code_returns.name:
+        returns_name = 0
+    else:
+        returns_name = code_returns.name
     # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
     code_returns = code_returns.reindex(market.index).fillna(0) # 收益对齐至market
     if type(sell_frozen_days)==type(None):
@@ -55,7 +59,7 @@ def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None)
     code_returns_frozen = code_returns_frozen.reset_index().merge(\
         frozen_days_labels.loc[frozen_days_start[frozen_days_start==1].index]\
            .reset_index().rename(columns={0:'index'}), on='index')\
-            .set_index(['date', 'code'])[0].sort_index()         # 收益率对齐到冻结首日
+            .set_index(['date', 'code'])[returns_name].sort_index()         # 收益率对齐到冻结首日
     code_returns_frozen = code_returns_frozen.reindex(frozen_days_labels.index).fillna(0)  # 其后冻结日收益为0
     code_returns.loc[code_returns_frozen.index] = code_returns_frozen # 修正code_returns
     return code_returns, market[~buy_frozen_days]
