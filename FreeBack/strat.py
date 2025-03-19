@@ -12,9 +12,9 @@ import time
 # 修正冻结交易日（停牌、涨跌停等）的returns,market
 def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None):
     if code_returns.name:
-        returns_name = 0
-    else:
         returns_name = code_returns.name
+    else:
+        returns_name = 0
     # code_returns 调整：连续冻结交易日（涨跌停/停牌）收益转移到第一个冻结交易日
     code_returns = code_returns.reindex(market.index).fillna(0) # 收益对齐至market
     if type(sell_frozen_days)==type(None):
