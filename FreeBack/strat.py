@@ -68,7 +68,7 @@ def frozen_correct(code_returns, market, buy_frozen_days, sell_frozen_days=None)
 # 择股策略、元策略
 class MetaStrat():
     # 'inexclude':,
-        # None,  不排除
+        # True,  不排除
         # 'include'， 'include'列为bool值，为True为符合条件的证券
         # 'exclude'  'exclude列为bool值, 为True为排除的证券
         # 格式为 ['code0', 'code1', ] 时为等权持有固定证券组合，'cash'表示持有现金
@@ -105,38 +105,34 @@ class MetaStrat():
             self.code_returns = pd.concat([self.code_returns, cash['returns']]).sort_index()
     # 获得虚拟持仓表(价格每一时刻货值都为1的持仓张数)
     def get_hold(self):
-        #if self.inexclude==False:
-        #    self.market['include'] = True
-        #    self.inexclude = ('include', False)
-        # 按列表持股
-        if type(self.inexclude)==list:
+        if type(self.inexclude)==list:  # 按列表持股
             if 'cash' in (self.inexclude):
                 self.add_cash()
             df_hold = self.market.loc[:, self.inexclude, :]
-            # 记录选中顺序
-            self.keeppool_rank = pd.Series(index=df_hold.index)
-        elif self.inexclude==None:
-            #print('inexclude None')
-            df_hold = self.market 
-            self.keeppool_rank = pd.Series(index=df_hold.index)
-        # 按排除、排序规则持股，避免持有退市前最后一天股票
-        else:
-            keeppool_rank = (lambda x: self.market[~self.market['Z']] if (not x) \
-                            else self.market[(~self.market['Z'])&self.market[x]] if x=='include' \
-                                else self.market[(~self.market['Z'])&(~self.market[x])])\
-                                    (self.inexclude)[self.score].\
-                                        groupby('date').rank(\
-                                            ascending=False, pct=(self.hold_num<1), method='first')
+            self.keeppool_rank = pd.Series(index=df_hold.index)  # 记录选中顺序
+        #elif self.inexclude==None:  # 持仓全部股票
+        #    df_hold = self.market 
+        #    self.keeppool_rank = pd.Series(index=df_hold.index)
+        else: # 避免持有退市前最后一天股票
+            if not self.inexclude:
+                keeppool_rank = self.market[self.score][~self.market['Z']]
+            elif self.inexclude=='include':
+                keeppool_rank = self.market[self.score][(~self.market['Z'])&self.market['include']]
+            elif self.inexclude=='exclude':
+                keeppool_rank = self.market[self.score][(~self.market['Z'])&(~self.market['exclude'])]
+            #time0 = time.time()
+            keeppool_rank = keeppool_rank.groupby('date').rank(ascending=False, \
+                                        pct=(self.hold_num<1), method='first')
+            #print('按日期分组排名耗时', time.time()-time0)  
+            #time0 = time.time()
             self.keeppool_rank = keeppool_rank[keeppool_rank<=self.hold_num]
-            df_hold = self.market.loc[self.keeppool_rank.index].copy()
-            #self.keeppool_rank = pd.Series(index=keeppool_rank.sort_values().groupby('date').\
-            #                               head(self.hold_num).reset_index().\
-            #                                sort_values(by=['date', self.score]).\
-            #                                    set_index(['date', 'code']).index)
-            # 检查有无空仓情形，如果有的话就添加现金
-            lost_bars = list(set(self.market.index.get_level_values(0))-\
+            df_hold = self.market[[self.price]].loc[self.keeppool_rank.index] #.copy()
+            # 检查有无空仓情形，如果有的话就在空仓日添加现金
+            if len(self.market.index.get_level_values(0).unique())!=\
+                    len(df_hold.index.get_level_values(0).unique()):
+                print('存在空仓')
+                lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
-            if lost_bars!=[]:
                 self.add_cash()
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 赋权
@@ -148,7 +144,6 @@ class MetaStrat():
         # 总账户市值1块钱
         df_hold = df_hold.div((df_hold!=0).sum(axis=1), axis=0)
         self.df_hold = self.direct*df_hold
-        #self.df_hold = self.direct*df_hold.apply(lambda x: x/(x!=0).sum(), axis=1)
     # 调仓间隔不为1时，需考虑调仓问题
     def get_interval(self, df):
         if type(self.interval)!=int:
@@ -170,6 +165,8 @@ class MetaStrat():
     def run(self):
         #time0 = time.time()
         self.get_hold()
+        #print('获取持仓矩阵耗时', time.time()-time0) 
+        #time0 = time.time()
         df_hold = self.get_interval(self.df_hold)
         keeppool_rank = self.get_interval(self.keeppool_rank.fillna(1).\
                                     groupby('date').cumsum().unstack()).stack()
@@ -177,13 +174,8 @@ class MetaStrat():
             set_index(['date', 'code'])[0]
         #print('获取持仓表耗时', time.time()-time0)
         #time0 = time.time()
-        # 去掉一直持仓为0的品种
-        always_not_hold = (df_hold==0).all()
+        always_not_hold = (df_hold==0).all() # 去掉一直持仓为0的品种
         self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
-        #if df_hold:
-        #    # 如果不是每日再平衡的话，可能会有品种一直持仓为0，去掉一直持仓为0的品种
-        #   always_not_hold = (df_hold==0).all()
-        #    self.df_hold = df_hold[always_not_hold[~always_not_hold].index].copy()
         # 判断cash是否在持仓，如果在的话避免price没有cash列
         if ('cash' in self.df_hold.columns)&('cash' not in self.market.index.get_level_values(1)):
             self.add_cash()
@@ -193,9 +185,13 @@ class MetaStrat():
         self.df_price = df_price[~df_price.isna().all(axis=1)].copy()
         # 虚拟货值矩阵
         self.df_amount = (self.df_hold*self.df_price).fillna(0)
+        #print('获取虚拟货值矩阵耗时', time.time()-time0)  
+        #time0 = time.time()
         # 权重矩阵
         self.df_weight = (self.df_amount.apply(lambda x:\
                                         (x/abs(x.sum())).fillna(0), axis=1))
+        #print('获取权重矩阵耗时', time.time()-time0)  
+        #time0 = time.time()
         # 净值贡献矩阵
         if type(self.code_returns)==type(None):
             self.code_returns = (self.df_price/self.df_price.shift() - 1).fillna(0)
@@ -219,7 +215,6 @@ class MetaStrat():
             self.df_turnover['cash'] = 0
         self.turnover = self.df_turnover.sum(axis=1)
         #print('获取换手率耗时', time.time()-time0)
-        #time0 = time.time()
 
 
 
