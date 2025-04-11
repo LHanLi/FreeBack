@@ -166,7 +166,7 @@ class ReturnsPost():
         plt.savefig('./output/details.png')
         plt.show()
 # 时间起止（默认全部），是否显示细节,是否自定义输出图片名称，是否显示对数，是否显示超额
-    def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False):
+    def pnl(self, timerange=None, detail=True, filename=None, log=False, excess=False, title='pnl'):
         plt, fig, ax = FB.display.matplot()
         # 只画一段时间内净值（用于展示局部信息,只列出sharpe）
         if type(timerange) != type(None):
@@ -242,6 +242,7 @@ class ReturnsPost():
             ax.set_xlabel('日期')
             ax2.set_ylabel('回撤 (%)')
             ax.set_xlim(self.net.index[0], self.net.index[-1])
+            plt.title(title)
             plt.gcf().autofmt_xdate()
         check_output()
         if type(filename) == type(None):
