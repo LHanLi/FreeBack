@@ -130,9 +130,9 @@ class MetaStrat():
             # 检查有无空仓情形，如果有的话就在空仓日添加现金
             if len(self.market.index.get_level_values(0).unique())!=\
                     len(df_hold.index.get_level_values(0).unique()):
-                print('存在空仓')
                 lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
+                print('存在空仓', lost_bars)
                 self.add_cash()
                 df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
         # 赋权
