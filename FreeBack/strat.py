@@ -83,8 +83,9 @@ class MetaStrat():
         self.score = score
         self.hold_num = hold_num
         # 记录是否是上市最后一天
-        market['Z'] = market.index.get_level_values(1).duplicated(keep='last')
-        market['Z'] = ~market['Z']
+        #market['Z'] = market.index.get_level_values(1).duplicated(keep='last')
+        #market['Z'] = ~market['Z']
+        market.loc[:, 'Z'] = ~market.index.get_level_values(1).duplicated(keep='last')
         market.loc[market.index[-1][0], 'Z'] = False
         self.market = market
         self.price = price
