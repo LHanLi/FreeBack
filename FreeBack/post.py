@@ -193,12 +193,13 @@ class ReturnsPost():
                             c='C3', label='超额收益')
             else:
                 ax.text(0.7,0.05,'Sharpe:  {}'.format(round(sharpe,2)), transform=ax.transAxes)
-            ax.plot(net/net[0], c='C0', label='p&l')
+            ax.plot(net/net.iloc[0], c='C0', linewidth=2, label=self.stratname)
             # 如果基准是0就不绘制了
             if not type(self.benchmark)==type(None):
                 # benchmark 匹配回测时间段, 基准从0开始
                 benchmark = self.benchmark.loc[self.net.index[0]:self.net.index[-1]].copy()
-                benchmark.loc[self.net.index[0]] = 0
+                #benchmark.loc[self.net.index[0]] = 0
+                benchmark.loc[self.net.index[0], :]  = 0
                 # colors of benchmark
                 colors_list = ['C4','C5','C6','C7']
                 for i in range(len(benchmark.columns)):
@@ -206,11 +207,12 @@ class ReturnsPost():
                             c=colors_list[i], label=benchmark.columns[i])
                 if excess:
                     ax.plot(np.exp(self.excess_lr.cumsum()), c='C3', label='超额收益')
-                plt.legend(loc='upper left')
+                #plt.legend(loc='upper left')
             if log:
                 # 对数坐标显示
                 ax.set_yscale("log")
             ax.set_xlim(returns.index[0], returns.index[-1])
+            plt.title(title)
             plt.gcf().autofmt_xdate()
         else:
     #评价指标
