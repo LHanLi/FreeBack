@@ -173,11 +173,11 @@ class ReturnsPost():
             # 时间段内净值与基准
             net = self.net.loc[timerange[0]:timerange[1]]
             returns = self.returns.loc[timerange[0]:timerange[1]]
-            # 计算夏普
-            years = (pd.to_datetime(timerange[1])-pd.to_datetime(timerange[0])).days/365
-            return_annual = (net[-1]/net[0])**(1/years)-1
-            std_annual = returns.std()*np.sqrt(250)
-            sharpe = (return_annual - self.rf)/std_annual
+            # 计算年化夏普
+            return_annual = (returns+1).prod()**(self.annual_num/len(returns))-1   
+            sigma = (np.exp(np.log(1+returns).std())-1)*np.sqrt(self.annual_num)
+            sharpe = (return_annual - self.rf)/sigma
+
             if detail:
                 # 回撤
                 a = np.maximum.accumulate(net)
