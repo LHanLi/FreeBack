@@ -133,12 +133,12 @@ class MetaStrat():
                     len(df_hold.index.get_level_values(0).unique()):
                 lost_bars = list(set(self.market.index.get_level_values(0))-\
                                             set(df_hold.index.get_level_values(0)))
-                print('存在空仓', lost_bars)
                 self.add_cash()
-                df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :], df_hold])
+                df_hold = pd.concat([self.market.loc[lost_bars, 'cash', :][[self.price]],\
+                                      df_hold])
         # 赋权
         if type(self.hold_weight)!=type(None):
-            w_ = self.hold_weight
+            w_ = self.hold_weight   # 如果df_hold中有cash，权重也应该加入cash
         else:
             w_ = 1
         df_hold = ((w_/df_hold[self.price]).dropna().unstack()).fillna(0)
