@@ -3,3 +3,5 @@
 *.pyc
 *.pyc
 *.pyc
+*.txt
+FreeBack.egg-info/PKG-INFO
